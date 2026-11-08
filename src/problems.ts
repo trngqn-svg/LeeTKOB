@@ -15,7 +15,7 @@ export const PROBLEMS = {
     status: 422,
     title: "Idempotency-Key reused with a different body",
   },
-  "reviews-pending": { status: 409, title: "Reviews are still pending" },
+  "reviews-pending": { status: 400, title: "Reviews are still pending" },
   internal: { status: 500, title: "Internal server error" },
 } as const;
 
