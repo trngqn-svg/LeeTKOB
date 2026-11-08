@@ -52,9 +52,11 @@ checks are required. Nobody pushes to `main` directly.
 
 - Every variable is listed, without values, in [`.env.example`](.env.example). Real values live only in `.env` (git-ignored) and in GitHub Actions secrets.
 - The model is not called yet (it arrives in PA#3). When it is, the key never enters the judging sandbox, including its environment variables.
-- **Spending cap:** <!-- FILL IN: provider, model, the cap you set, where you set it --> the model API key has a hard spending cap of **US$ \_\_ / month**, set in the provider console. Cost of one lab: _to be measured in PA#3_.
+- **Spending cap: US$0.** Provider: Google Gemini API, **free tier**. The key is created in Google AI Studio on a Google Cloud project with **no billing account linked**, so it cannot be charged. Requests above the free quota are refused (HTTP 429), not billed. If billing is ever enabled, set a budget and a quota cap first, then update this line.
+- Model: set by `LLM_MODEL`, chosen in PA#3 and recorded here. Cost of one lab: _to be measured in PA#3_.
+- On the free tier Google may use prompts to improve its products. We send only the lab statement, the constraints, and code with names and student IDs removed (brief §3).
 
 ## For the assistant
 
-The rules are in [`CLAUDE.md`](CLAUDE.md), and the permissions in [`docs/PERMISSIONS.md`](docs/PERMISSIONS.md).
+The rules are in [`AGENTS.md`](AGENTS.md) (`CLAUDE.md` imports it for Claude Code), and the permissions in [`docs/PERMISSIONS.md`](docs/PERMISSIONS.md).
 Use of AI tools is logged in [`AI-LOG.md`](AI-LOG.md).
