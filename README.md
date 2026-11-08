@@ -56,5 +56,5 @@ checks are required. Nobody pushes to `main` directly.
 
 ## For the assistant
 
-The rules are in [`CLAUDE.md`](CLAUDE.md), and the permissions in [`docs/PERMISSIONS.md`](docs/PERMISSIONS.md).
+The rules are in [`AGENTS.md`](AGENTS.md) (`CLAUDE.md` imports it for Claude Code), and the permissions in [`docs/PERMISSIONS.md`](docs/PERMISSIONS.md).
 Use of AI tools is logged in [`AI-LOG.md`](AI-LOG.md).
