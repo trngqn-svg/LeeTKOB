@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import { sendProblem } from "./problems.ts";
+import { registerHealth } from "./routes/health.ts";
 import { registerPublish } from "./routes/publish.ts";
 import type { Store } from "./store.ts";
 
@@ -40,6 +41,7 @@ export function buildApp(store: Store) {
     },
   );
 
+  registerHealth(app);
   registerPublish(app, store);
   return app;
 }
