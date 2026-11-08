@@ -1,0 +1,10 @@
+# What the assistant may do
+
+Enforced for Claude Code by [`.claude/settings.json`](../.claude/settings.json). The same
+three tiers apply to any other tool the team uses.
+
+| Tier          | Actions                                                                                                                                                                                                                                  | Why                                                                                                                                            |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Allowed**   | Read the code. Edit `src/` and docs other than the contract. Run the four checks (`lint`, `format`, `format:check`, `typecheck`, `test`). `git status / diff / log / switch / add`.                                                      | Reversible and local.                                                                                                                          |
+| **Ask first** | Install or remove a package. `git commit / push / tag / merge / rebase`. Edit `tests/`, `docs/contract/` or `.github/workflows/`. Any network call (`curl`).                                                                             | A test, the contract or CI can be changed to make a check pass. Pushing and tagging are visible to others. A new package is new code we trust. |
+| **Never**     | Read `.env` or any real secret. Push to `main`, force-push, `reset --hard`, rewrite history. `rm -rf`. Run Docker on the host. That includes the judging sandbox: it gets no secrets and no Docker socket. Call a real model from tests. | Leaks a secret or destroys work that cannot be recovered.                                                                                      |
