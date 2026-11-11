@@ -33,7 +33,12 @@ review queue, then Publish. Read `docs/contract/` before touching an endpoint.
 
 - Never put a secret in the repo, in a prompt, or in the sandbox. That covers its
   environment variables too. The model API key lives only in `.env` (git-ignored) and in CI secrets.
-- Never call a real model in unit or contract tests. Use a fake.
+- Never call a real model in unit or contract tests. Use a fake answer instead, just use real AI model when eval.
+- Never let the model decide a deduction. The TA sets it. The model only returns
+  `pass / violation / unsure` with evidence lines (brief §3).
+- Never send student names, IDs or code comments to the model (brief §3).
+- Never add a way to publish while reviews are pending (brief §3, `docs/contract/publish-lab.md`).
+- Never run submitted code outside the sandbox (brief §5).
 - Never edit a test, the eval data, or a label to make a check pass. If a test is
   wrong, say why in the PR and fix it in a commit that touches no `src/` file.
 - Never pipe a check into `tail`/`head`/`grep`, and never add `|| true` or

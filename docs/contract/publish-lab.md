@@ -79,7 +79,7 @@ success and must not show "published" twice.
 
 ## Idempotency
 
-Publishing is idempotent in two layers.
+Publishing is idempotent. There are three cases.
 
 1. **Same `Idempotency-Key`, same body** (a retried request): the server returns the
    **stored response** (same status, same body) and the header `Idempotent-Replayed: true`.
