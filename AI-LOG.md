@@ -36,3 +36,12 @@ Kept: `AGENTS.md` holds the rules. Copilot, Cursor and Codex read it directly.
 Changed: Claude Code does not read `AGENTS.md` on its own. A plain rename would have left Claude without rules, so `CLAUDE.md` now contains only `@AGENTS.md` (an import). There is one source and no copy that can drift.
 Rejected: keeping the rules only in `CLAUDE.md`. Not every member uses Claude.
 By hand: the decision to rename.
+
+## 2026-11-11 — PA#2 evidence: screenshot of the red required check
+
+Tool: Claude Code (Opus), to review our PA#2 against the rubric and add this entry.
+Asked for: what evidence row 4 still lacked. It pointed out that the PR #1 screenshot shows merging blocked by the required review, not by the red checks.
+Kept: the advice to reuse PR #2 instead of opening a new PR with another planted failure.
+Changed: nothing in `src/`, `tests/` or the contract.
+Rejected: creating a new PR just to show a failing check. PR #2 already had one.
+By hand: 2026-11-11: reopened PR #2 to screenshot the red required check, closed it again unmerged. Screenshot: `docs/pa2/pr2-blocked.png`.
