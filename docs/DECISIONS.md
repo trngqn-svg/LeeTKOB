@@ -10,24 +10,27 @@ Each decision has a status:
 
 Where the team wrote a reason down, the reason starts with "Recorded" and names the file. Otherwise it starts with "Inferred": the reason was worked out from the code and the class brief, and the team should confirm or correct it. The reasons of the proposed decisions are not recorded anywhere yet. They are the reasoning behind the proposal, offered for the team to accept or change. This file was drafted with Claude from the repository. Nobody on the team has reviewed it yet.
 
-| No. | Decision                                    | Status   | Main trade-off                                         |
-| --- | ------------------------------------------- | -------- | ------------------------------------------------------ |
-| 1   | Node 22, TypeScript and Fastify 5           | decided  | One thread, so CPU-heavy work must stay out of the API |
-| 2   | Errors as problem+json with fixed titles    | decided  | A fixed title cannot fit every case, so more types     |
-| 3   | Contract first, tests copy the contract     | decided  | More writing, and two copies that can drift            |
-| 4   | One CI job per check, and a secret scan     | decided  | More CI minutes                                        |
-| 5   | Protected main, three permission tiers      | decided  | Every commit and push needs a human answer             |
-| 6   | Gemini free tier with a US$0 cap            | decided  | Quota limits and HTTP 429 under load                   |
-| 7   | One repository, two processes               | proposed | One host only, because of the shared SQLite file       |
-| 8   | SQLite as the database and the queue        | proposed | One writer at a time, and an experimental module       |
-| 9   | Leases and a guarded finish                 | proposed | A job can be judged twice                              |
-| 10  | Our own Docker sandbox, not Judge0          | proposed | Shared kernel, and the worker needs Docker             |
-| 11  | Syntax-aware parser for the hard rules      | proposed | Syntax without meaning: macros and aliases             |
-| 12  | One model call per semantic constraint      | proposed | More calls and more quota                              |
-| 13  | Strict rules for model input and output     | proposed | More unsure, and comments that explain intent are lost |
-| 14  | Verdicts only in the review queue, API only | proposed | TA workload, and no early signal for students          |
-| 15  | Hosting                                     | open     | A paid VPS, or a computer that sleeps                  |
-| 16  | Dev set copied unchanged, pinned by hash    | proposed | A manual update if the lecturer republishes it         |
+| No. | Decision                                                | Status   | Main trade-off                                         |
+| --- | ------------------------------------------------------- | -------- | ------------------------------------------------------ |
+| 1   | Node 22, TypeScript and Fastify 5                       | decided  | One thread, so CPU-heavy work must stay out of the API |
+| 2   | Errors as problem+json with fixed titles                | decided  | A fixed title cannot fit every case, so more types     |
+| 3   | Contract first, tests copy the contract                 | decided  | More writing, and two copies that can drift            |
+| 4   | One CI job per check, and a secret scan                 | decided  | More CI minutes                                        |
+| 5   | Protected main, three permission tiers                  | decided  | Every commit and push needs a human answer             |
+| 6   | Gemini free tier with a US$0 cap                        | decided  | Quota limits and HTTP 429 under load                   |
+| 7   | One repository, two processes                           | proposed | One host only, because of the shared SQLite file       |
+| 8   | SQLite as the database and the queue                    | proposed | One writer at a time, and an experimental module       |
+| 9   | Leases and a guarded finish                             | proposed | A job can be judged twice                              |
+| 10  | Our own Docker sandbox, not Judge0                      | proposed | Shared kernel, and the worker needs Docker             |
+| 11  | Syntax-aware parser for the hard rules                  | proposed | Syntax without meaning: macros and aliases             |
+| 12  | One model call per semantic constraint                  | proposed | More calls and more quota                              |
+| 13  | Strict rules for model input and output                 | proposed | More unsure, and comments that explain intent are lost |
+| 14  | Verdicts only in the review queue, API only             | proposed | TA workload, and no early signal for students          |
+| 15  | Hosting                                                 | open     | A paid VPS, or a computer that sleeps                  |
+| 16  | Dev set copied unchanged, pinned by hash                | proposed | A manual update if the lecturer republishes it         |
+| 17  | The lecturer's requirements come first                  | decided  | Some FAQ rules are delayed or reduced                  |
+| 18  | Publish also waits for queued and running submissions   | proposed | A stuck job blocks Publish                             |
+| 19  | A database check to limit how fast a student can submit | decided  | Protects submissions only, not login                   |
 
 ## Fixed by the brief
 
@@ -120,7 +123,7 @@ The reason behind all of them is in the brief: a wrongful deduction can push a s
 ### 9. Leases and a guarded finish for exactly-once judging
 
 - **Status:** proposed.
-- **Choice:** a claim sets `locked_by` and `lease_until`. The worker extends the lease while it works. An expired lease puts the job back, up to three attempts, and then marks it `failed`. The finish is one transaction that updates the row only if this worker still holds it, and a unique key refuses a second verdict.
+- **Choice:** a claim sets `locked_by` and `lease_until`. The worker extends the lease while it works. An expired lease puts the job back, up to three attempts, and then marks it `failed`. A worker that catches an error that is not the student's releases the job at once. The finish is one transaction that updates the row only if this worker still holds it and the lab is still open, and a unique key refuses a second verdict.
 - **Other options:** delete the job when it is taken (at most once). A long lock with no expiry. Trust a single worker never to crash.
 - **Why:** the rubric asks for exactly one set of verdicts after the worker is stopped and started, even if the judging itself ran twice. A job held by a worker that crashes must not be lost or stuck. The SQL was run against an in-memory SQLite: a stale worker writes nothing, and a second finish is refused.
 - **Trade-offs:** a job can be judged twice, which repeats the sandbox run and the model calls, so it can cost money twice. The lease length is a guess: too short causes duplicate runs, too long delays recovery. More states mean more code and more tests.
@@ -167,9 +170,9 @@ The reason behind all of them is in the brief: a wrongful deduction can push a s
 - **Status:** proposed.
 - **Choice:** a verdict can be read only through the TA's review queue. A student sees the status and the judge result of their own submission. PA#3 has an API and no web pages.
 - **Other options:** show verdicts to students at once. Build a web interface now.
-- **Why:** the brief makes the human gate the step that is hard to undo, and nothing in this build turns a verdict into a mark. The rubric accepts the API for the walk-through, and with two days left the time goes into the sandbox, the queue and the model.
+- **Why:** the brief makes the human gate the step that is hard to undo, and nothing in this build turns a verdict into a mark. The FAQ agrees: before Publish a student sees only test results (FAQ-08). The rubric accepts the API for the walk-through, and with two days left the time goes into the sandbox, the queue and the model.
 - **Trade-offs:** the TA must review every violation and every unsure before Publish, which is work and delays the marks. Students get no early signal about a constraint violation. Demos and grading use `curl` or scripts, which is harder to follow than a screen. A web interface is still needed for the real-time results of PA#5.
-- **Change it when:** the product owners answer that students may see evidence (brief section 8), or the demo for the lecturer needs a screen.
+- **Change it when:** the lecturer asks for a screen in the demo, or the product owners change FAQ-08.
 
 ### 15. Hosting
 
@@ -188,6 +191,33 @@ The reason behind all of them is in the brief: a wrongful deduction can push a s
 - **Why:** the rubric scores 0 on the checker criterion if the dev set or `eval.mjs` was edited, and the lecturer re-scores with their own copy. A copy keeps the repository self-contained, so CI and the marker's container need no network. Prettier would rewrite `eval.mjs` and ESLint would reject its use of `process`, so both must skip the folder.
 - **Trade-offs:** 128 files and about 2.6 MB in the history. If the lecturer republishes the set, we replace it by hand and the pinned hash fails until we update it. Because of the ignores, none of our tools checks that folder.
 - **Change it when:** the lecturer changes the published set.
+
+### 17. The lecturer's requirements come first
+
+- **Status:** decided.
+- **Choice:** when sources disagree the order is the lecturer (the class brief, the rubrics, the published dev set and `eval.mjs`), then the product owners' FAQ where the brief is silent, then the team's own choices. Every FAQ entry we rely on is cited in the repository.
+- **Other options:** follow the FAQ literally, or follow whatever the team finds best.
+- **Why:** Recorded: the brief (section 8) says that the brief wins over the FAQ, and the FAQ says the same about itself. The PA#3 rubric (criterion 5) asks for the FAQ to be cited for what a student sees before publishing. A team member stated this rule on 2026-11-24.
+- **Trade-offs:** some FAQ rules are delayed or reduced, so the product can differ from what the product owners wrote. The deadline is optional, and every Accepted submission is reviewed instead of only the last one (section 1.1 of `docs/ARCHITECTURE.md`). Each such case needs an answer from the lecturer, and until it comes the rubric's walk-through decides. The FAQ can also change, so a citation must name the entry.
+- **Change it when:** the lecturer says that a FAQ rule must be followed as written.
+
+### 18. Publish also waits for queued and running submissions
+
+- **Status:** proposed. One team member agreed on 2026-11-24. It is not in the contract yet.
+- **Choice:** Publish refuses while any review item is pending and while any submission of the lab is `queued` or `running`. The worker's finish also refuses to write into a lab that is already published.
+- **Other options:** count only the review items, as the contract does today. Count only the latest submission of each student, which would follow FAQ-02 but not the rubric's walk-through.
+- **Why:** a submission that is still waiting has no review item, so counting only the items lets Publish succeed with a submission that was not even judged. That breaks the brief's rule that marks are published only after the TA has reviewed them (section 3). The gap and the fix were both run against the real schema.
+- **Trade-offs:** a stuck job blocks Publish until it is judged or fails: up to about 3 minutes with the lease rules, less with the release on error. A `failed` submission is not counted yet, which is an open point. Publish reads one more count in its transaction. The contract and its tests have to change first, each in its own commit.
+- **Change it when:** the team adopts FAQ-02's rule that only the last submission is graded. Then count only those submissions.
+
+### 19. A database check to limit how fast a student can submit
+
+- **Status:** decided on 2026-11-24 by a team member, for now. The team plans to review later whether to move to a library.
+- **Choice:** two checks per student, made in the same transaction that inserts the submission. At most `SUBMIT_MAX_PENDING` submissions queued or running (default 15), and at most `SUBMIT_MAX_PER_MINUTE` created in the last 60 seconds (default 30). A student over a limit gets 429 `too-many-submissions` with `Retry-After`, and nothing is stored. The check reads the `submissions` table and the index on `(student_id, created_at)`.
+- **Other options:** (a) a rate-limit library, such as the official Fastify plugin. (b) a limit at the proxy or tunnel in front of the app. (c) a hard cap on the number of submissions, which FAQ-02 does not allow.
+- **Why:** the pending cap depends on state (which submissions are queued or running), which a request counter does not know. The check and the insert are one transaction, so two requests at the same moment cannot both pass. It needs no new dependency, survives a restart, and counts only real submissions. The current handlers authenticate inside the handler, so a library keyed by user would first need authentication moved into a hook, and a library keyed by IP would put all students behind one university network under one limit. The defaults stay well above what the lecturer's flows need (the walk-through of three submissions and about ten attack submissions), and they are environment variables.
+- **Trade-offs:** it protects submissions only: login, malformed requests and a flood spread over many accounts are not limited. We write and test the code ourselves, and the numbers are a guess. A window of 60 seconds is exact but has no "burst then steady refill" shape. Two accounts can still queue up to 30 jobs. Every submission costs three small count queries.
+- **Change it when:** the PA#4 red team or the logs show abuse that this does not cover, or the team wants one limit for every route. Then add a library or a proxy limit for the generic cases and keep this check for the domain rules. A library with an in-memory store would also need Redis if the API ever runs as more than one process.
 
 ## Adding a decision
 
