@@ -6,3 +6,4 @@ dist/
 !.env.example
 .claude/settings.local.json
 *.log
+data/
