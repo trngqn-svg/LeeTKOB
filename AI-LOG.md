@@ -189,3 +189,12 @@ Kept: four team decisions, chosen by 23120343 from the options the assistant lis
 Changed: the assistant first listed the admin endpoints for accounts as planned. They became "later", with a seed command for the test accounts, because the rubric only requires the lab to be created through the API.
 Rejected: fixing the minor wording mismatches (the C4 diagrams, README, `HOST` in a container) in this pull request. They are left for when the code changes them. The claim that `node:sqlite` needs no flag from Node 22.13 was written from the assistant's memory and is to be checked against the Node changelog.
 By hand: 23120343 chose the four decisions. The other members have not reviewed them yet.
+
+## 2026-11-24 — the shared types of the judging pipeline (T2)
+
+Tool: Claude Code (Opus 5.5).
+Asked for: 23120343 asked for task T2, the interfaces the three members share: the verdict, the constraint result, the model client and the sandbox function.
+Kept: `src/judge/types.ts`, types only. `ConstraintResult` is a union of three shapes, so the schema's CHECKs (a violation has evidence, a reason exists exactly when the verdict fell back) fail at compile time, and it has no deduction field. `ModelInput` holds only the statement, one constraint and the code without comments, so no identity can reach the model. The caller of `ModelClient` owns the timeout through an `AbortSignal`, so the guardrails write it once and the fake client in tests stays simple. `RunInSandbox` throws only for a failure of the system, so the worker can release the job (ARCHITECTURE section 4.1).
+Changed: 23120343 asked for an explanation of every part before the commit, and did not change the file.
+Rejected: a stricter union that also forbids `unsure` with `decidedBy: "hard_rule"`. It made the type harder to read for a case the hard rules never produce.
+By hand: Loc (L3, L7) and Quan (Q6) have not reviewed the types yet. They should, on the pull request, before it is merged.
