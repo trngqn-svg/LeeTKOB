@@ -2,6 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import Fastify from "fastify";
 import { sendProblem } from "./problems.ts";
 import { registerHealth } from "./routes/health.ts";
+import { registerLabs } from "./routes/labs.ts";
 import { registerLogin } from "./routes/login.ts";
 import { registerPublish } from "./routes/publish.ts";
 import type { Store } from "./store.ts";
@@ -22,6 +23,18 @@ export function buildApp(store: Store, db?: DatabaseSync) {
           "unsupported-media-type",
           instance,
           "Send application/json.",
+        );
+      }
+      if (error.code === "FST_ERR_CTP_BODY_TOO_LARGE") {
+        // Fastify refuses the body before reading it, so this comes before every check.
+        const limitBytes =
+          request.routeOptions.bodyLimit ?? app.initialConfig.bodyLimit;
+        return sendProblem(
+          reply,
+          "payload-too-large",
+          instance,
+          `The body is larger than ${limitBytes} bytes.`,
+          { limitBytes },
         );
       }
       if (error.statusCode === 400) {
@@ -46,7 +59,10 @@ export function buildApp(store: Store, db?: DatabaseSync) {
   );
 
   registerHealth(app);
-  if (db) registerLogin(app, db, store.now);
+  if (db) {
+    registerLogin(app, db, store.now);
+    registerLabs(app, db, store.now);
+  }
   registerPublish(app, store);
   return app;
 }
