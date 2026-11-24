@@ -292,4 +292,151 @@ export function registerLabs(
       });
     },
   );
+
+  const findLab = db.prepare(`
+    SELECT l.id, l.class_id, l.title, l.statement_md, l.status, l.deadline,
+           p.published_at, l.time_limit_ms, l.memory_limit_mb, l.created_by, l.created_at,
+           (SELECT COUNT(*) FROM lab_tests t WHERE t.lab_id = l.id) AS test_count
+      FROM labs l LEFT JOIN publications p ON p.lab_id = l.id
+     WHERE l.id = ?`);
+  const findConstraints = db.prepare(
+    "SELECT code, text, kind, banned_names, deduction FROM lab_constraints WHERE lab_id = ? ORDER BY id",
+  );
+  const findTests = db.prepare(
+    "SELECT position, input, expected_output FROM lab_tests WHERE lab_id = ? ORDER BY position",
+  );
+
+  app.get<{ Params: { labId: string }; Querystring: Record<string, unknown> }>(
+    "/labs/:labId",
+    (request, reply) => {
+      const { labId } = request.params;
+      const instance = `/labs/${labId}`;
+
+      const user = authenticate(db, request.headers.authorization, now());
+      if (!user) {
+        return sendProblem(
+          reply,
+          "unauthenticated",
+          instance,
+          "Send a valid Bearer token.",
+        );
+      }
+      if (user.role === "admin") {
+        return sendProblem(
+          reply,
+          "role-not-allowed",
+          instance,
+          "An admin has no access to labs.",
+          {
+            requiredRole: ["ta", "student"],
+          },
+        );
+      }
+
+      // Fastify turns a repeated parameter into an array, so "tests" twice is not "tests".
+      const query = request.query;
+      const wrong =
+        Object.keys(query).find((k) => k !== "include") ??
+        (query.include !== undefined && query.include !== "tests"
+          ? "include"
+          : undefined);
+      if (wrong) {
+        return sendProblem(
+          reply,
+          "invalid-query",
+          instance,
+          `The parameter ${wrong} is not allowed here.`,
+          {
+            parameter: wrong,
+          },
+        );
+      }
+
+      const lab = findLab.get(labId) as LabRow | undefined;
+      // Same answer for "no such lab" and "not your class": ids of other classes must not leak.
+      if (!lab || !isMember(db, user.id, lab.class_id)) {
+        return sendProblem(
+          reply,
+          "lab-not-found",
+          instance,
+          "No lab with this id is in your classes.",
+        );
+      }
+      const withTests = query.include === "tests";
+      if (withTests && user.role !== "ta") {
+        return sendProblem(
+          reply,
+          "role-not-allowed",
+          instance,
+          "Only a TA may read the tests (FAQ-02).",
+          {
+            requiredRole: "ta",
+          },
+        );
+      }
+
+      const constraints = (
+        findConstraints.all(labId) as unknown as ConstraintRow[]
+      ).map((c) => ({
+        code: c.code,
+        text: c.text,
+        kind: c.kind,
+        bannedNames: JSON.parse(c.banned_names) as string[],
+        deduction: c.deduction,
+      }));
+      const tests = withTests
+        ? (findTests.all(labId) as unknown as TestRow[]).map((t) => ({
+            position: t.position,
+            input: t.input,
+            expectedOutput: t.expected_output,
+          }))
+        : undefined;
+
+      return reply.header("cache-control", "private, no-store").send({
+        id: lab.id,
+        classId: lab.class_id,
+        title: lab.title,
+        statementMd: lab.statement_md,
+        status: lab.status,
+        deadline: lab.deadline,
+        publishedAt: lab.published_at,
+        timeLimitMs: lab.time_limit_ms,
+        memoryLimitMb: lab.memory_limit_mb,
+        constraints,
+        createdBy: lab.created_by,
+        createdAt: lab.created_at,
+        testCount: lab.test_count,
+        ...(tests ? { tests } : {}),
+      });
+    },
+  );
+}
+
+interface LabRow {
+  id: string;
+  class_id: string;
+  title: string;
+  statement_md: string;
+  status: string;
+  deadline: string | null;
+  published_at: string | null;
+  time_limit_ms: number;
+  memory_limit_mb: number;
+  created_by: string;
+  created_at: string;
+  test_count: number;
+}
+
+interface ConstraintRow {
+  code: string;
+  text: string;
+  kind: string;
+  banned_names: string;
+  deduction: number;
+}
+
+interface TestRow {
+  position: number;
+  input: string;
+  expected_output: string;
 }
