@@ -617,7 +617,24 @@ The types that exist in `src/problems.ts`:
 | `reviews-pending`         | 409    | Reviews are still pending                    |
 | `internal`                | 500    | Internal server error                        |
 
-The publish contract also names `deadline-not-passed` (409), which is not in the code yet. The new endpoints will need more types, for example for wrong login credentials, a source file that is too large, a lab that is already published, a submission after the deadline, a Publish before the deadline, and too many submissions (429, `too-many-submissions`). Each is named, with its fixed title and status, in the contract of the endpoint that uses it.
+The contracts in `docs/contract/` name twelve more types, which are not in the code yet. Each is added to `src/problems.ts` with the endpoint that first uses it. The contract is the source of the title: the tests copy it from there.
+
+| Type                     | Status | Title                              | First used by                                      |
+| ------------------------ | ------ | ---------------------------------- | -------------------------------------------------- |
+| `invalid-credentials`    | 401    | Email or password is wrong         | `auth-login.md`                                    |
+| `role-not-allowed`       | 403    | Your role may not do this          | `create-lab.md` and every new endpoint             |
+| `class-not-found`        | 404    | Class not found                    | `create-lab.md`                                    |
+| `payload-too-large`      | 413    | Request body is too large          | `create-lab.md`, `submit.md`, `review-decision.md` |
+| `invalid-query`          | 400    | Query parameter is invalid         | `get-lab.md`, `review-queue.md`                    |
+| `lab-published`          | 409    | The lab is already published       | `submit.md`, `review-decision.md`                  |
+| `deadline-passed`        | 409    | The deadline has passed            | `submit.md`                                        |
+| `too-many-submissions`   | 429    | Too many submissions               | `submit.md`                                        |
+| `submission-not-found`   | 404    | Submission not found               | `get-submission.md`                                |
+| `review-item-not-found`  | 404    | Review item not found              | `review-decision.md`                               |
+| `review-already-decided` | 409    | The review item is already decided | `review-decision.md`                               |
+| `deadline-not-passed`    | 409    | The deadline has not passed yet    | `publish-lab.md`                                   |
+
+`forbidden-role` keeps its title and stays on Publish only. Every endpoint after it answers `role-not-allowed`, with a member `requiredRole` that names the role or roles the endpoint needs.
 
 ### 6.6 Limits on submitting
 
@@ -661,7 +678,7 @@ How to read it:
 
 - **Publish and unjudged submissions (decided).** The publish contract counted review items only. A submission that is still `queued` or `running` has no review item, so a lab could be published while a submission has not been judged. The team decided that Publish also waits for queued and running submissions, and refuses while a submission is `failed` (section 4.3, decision 18). The contract says so (`docs/contract/publish-lab.md`, section "What blocks publishing"). The code and the tests do not follow it yet.
 - **The review queue shows every verdict (decided, 2026-11-24).** The PA#3 rubric (criterion 1) expects the queue to show each submission and each constraint, so a compliant submission must appear even when none of its passes was sampled. Only the items need a decision (section 6.3).
-- **Titles are fixed per problem type.** `forbidden-role` is titled "Only TAs may publish marks", so the endpoints that only an admin or only a student may call need their own role types, or a more general title decided in a contract-first commit.
+- **Titles are fixed per problem type (decided, 2026-11-24).** `forbidden-role` is titled "Only TAs may publish marks", so it stays on Publish only, and every new endpoint answers `role-not-allowed` ("Your role may not do this", section 6.5). The Publish contract and its tests do not change.
 - **What a student may see (answered by the FAQ).** Constraints with their deductions are visible (FAQ-06). Before Publish a student sees only test results (FAQ-08). Both are applied; see section 1.1.
 - **Sampling the passes.** The brief (section 3) sends a random 10% of the pass verdicts to the review queue, so it is part of the build even though the PA#3 rubric does not mark it. Each pass is drawn with a 10% chance. The FAQ adds rounding up and at least one pass per lab (FAQ-10), which needs a pass over the whole lab and is left for later.
 - **Guardrails of PA#4.** The brief (section 3) asks for evidence lines that match the code exactly and a cost cap per lab. The reasons `evidence_mismatch` and `cost_cap` already exist in the schema, and the evidence check is part of step 7. The cost cap itself is PA#4.
@@ -683,5 +700,5 @@ Tests land before, or in the same commit as, the code they test, one part per co
 - Isolation: a TA of another class gets `lab-not-found` for the lab and for its queue.
 - Submitting: with a fake clock, the 16th pending submission and the 31st submission within a minute get 429 with `Retry-After`, a refused submission is not stored, and a student near the limit does not slow another student.
 - Checker: with the model on it writes a call log with the provider's request ids (a fake provider in the test), and with `MODEL_OFF=1` it opens no connection.
-- Eval in CI: the checker image runs with `MODEL_OFF=1` and `--network none` on the dev set, and `eval.mjs` scores the output. The job fails only on exit code 2 (an invalid prediction file). Exit code 1 (a threshold not met) is accepted in PA#3, because the rubric sets no pass mark on the eval and, with the model off, every semantic pair is unsure.
+- Eval in CI: the checker image runs with `MODEL_OFF=1` and `--network none` on the dev set, and `eval.mjs --json summary.json` scores the output. The job fails on exit code 2 (an invalid prediction file), and on any wrongful deduction (`wrongful` above 0 in `summary.json`), because the brief (section 4, item 5) says the eval "blocks the merge when any wrongful deduction appears". Exit code 1 for recall or the unsure rate alone is accepted in PA#3: the rubric sets no pass mark on the eval, and with the model off every semantic pair is unsure.
 - Dev set: the SHA-256 of `eval.mjs` and `labels.jsonl` is pinned, so an edit turns CI red.
