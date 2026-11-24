@@ -26,6 +26,11 @@ export const PROBLEMS = {
   "deadline-passed": { status: 409, title: "The deadline has passed" },
   "too-many-submissions": { status: 429, title: "Too many submissions" },
   "submission-not-found": { status: 404, title: "Submission not found" },
+  "review-item-not-found": { status: 404, title: "Review item not found" },
+  "review-already-decided": {
+    status: 409,
+    title: "The review item is already decided",
+  },
   internal: { status: 500, title: "Internal server error" },
 } as const;
 
