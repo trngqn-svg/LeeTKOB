@@ -26,7 +26,7 @@ Where the team wrote a reason down, the reason starts with "Recorded" and names 
 | 12  | One model call per semantic constraint                  | proposed | More calls and more quota                              |
 | 13  | Strict rules for model input and output                 | proposed | More unsure, and comments that explain intent are lost |
 | 14  | Verdicts only in the review queue, API only             | proposed | TA workload, and no early signal for students          |
-| 15  | Hosting                                                 | open     | A paid VPS, or a computer that sleeps                  |
+| 15  | Hosting on one Azure for Students VM                    | proposed | Burstable CPU, unknown region limits, one owner        |
 | 16  | Dev set copied unchanged, pinned by hash                | proposed | A manual update if the lecturer republishes it         |
 | 17  | The lecturer's requirements come first                  | decided  | Some FAQ rules are delayed or reduced                  |
 | 18  | Publish also waits for queued and running submissions   | proposed | A stuck job blocks Publish                             |
@@ -174,14 +174,14 @@ The reason behind all of them is in the brief: a wrongful deduction can push a s
 - **Trade-offs:** the TA must review every violation and every unsure before Publish, which is work and delays the marks. Students get no early signal about a constraint violation. Demos and grading use `curl` or scripts, which is harder to follow than a screen. A web interface is still needed for the real-time results of PA#5.
 - **Change it when:** the lecturer asks for a screen in the demo, or the product owners change FAQ-08.
 
-### 15. Hosting
+### 15. Hosting on one Azure for Students VM
 
-- **Status:** open.
-- **Choice:** not made. The system needs a machine that can run Docker, stays up until the PA#4 marks are out, and can be reached over the internet.
-- **Other options:** a small VPS. A team member's computer with a tunnel such as Cloudflare Tunnel. A platform that cannot run Docker, which cannot run the sandbox. Serverless.
-- **Why:** the worker starts containers, which rules out platforms without Docker. A VPS stays up on its own. A tunnel is free and quick to set up.
-- **Trade-offs:** a VPS costs money and time to set up. A computer at home sleeps, reboots and depends on one person's network, and the red team of PA#4 will attack it. The test accounts are published in `PA3.md`, so anyone can use the system: the model quota and the sandbox have to take that.
-- **Decide by:** the start of the integration day. Criterion 1 is worth 15 points and needs a running deployment.
+- **Status:** proposed. A team member suggested it on 2026-11-24 and the configuration is in `docs/DEPLOYMENT.md`. The VM is not created yet.
+- **Choice:** one Ubuntu VM (2 vCPU and 4 GiB at first) in an Azure for Students subscription. It runs the API, the worker and the sandbox containers with Docker, behind Caddy with HTTPS on a free Azure DNS name.
+- **Other options:** a small VPS from another provider. A team member's computer with a tunnel such as Cloudflare Tunnel. A platform that cannot run Docker, which cannot run the sandbox. Serverless.
+- **Why:** the worker starts containers, so the host must be a machine with Docker, and a VM stays up on its own. The student credit should cover the weeks needed, and, as far as we know, it has a spending limit, which suits a deployment whose test accounts are public. There is no domain to buy.
+- **Trade-offs:** nobody knows yet whether the HCMUS student account qualifies, or which regions and sizes the subscription allows. A burstable VM slows down under sustained load, so compiling for every submission and the PA#5 load test may need a bigger size. One person owns the subscription, so the others need access. The credit could end before the PA#4 marks. The VM is the security boundary and must hold no identity and no other secrets. The deployment is plain Docker and Compose, so moving to another host is mostly copying the Compose file and the data volume.
+- **Change it when:** the subscription cannot create a suitable VM, the credit runs short, or the load test shows the size is wrong. Then use another VPS or a tunnel.
 
 ### 16. The dev set copied unchanged and pinned by hash
 

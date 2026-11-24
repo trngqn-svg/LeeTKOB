@@ -162,3 +162,12 @@ Kept: the entries, in the format of the PA#2 entries.
 Changed: the "By hand" lines say only what the conversation shows 23120337 did or decided.
 Rejected: writing down steps that nobody did. What has not been verified is named in the entries.
 By hand: 23120337 has to read the entries and correct what is wrong before the tag `pa3`.
+
+## 2026-11-24 — the Azure VM and the task assignment
+
+Tool: Claude Code (Sonnet 5.5).
+Asked for: 23120337 suggested hosting the server and the sandbox on an Azure for Students VM and asked for an opinion. Then 23120337 asked for the suitable VM configuration in the docs, and for tasks for Quan, Trong Quan and Loc, with the VM tasks given to Quan.
+Kept: `docs/DEPLOYMENT.md` (size, image, disk, swap, network rules, the services and their secrets, cost, checks to run on the new VM, what to verify first) and `docs/TASKS.md` (26 tasks with outputs, rubric criteria, dependencies and priorities, a timeline to the deadline, and what to cut if time runs short). Decision 15 in `docs/DECISIONS.md` changed from open to proposed.
+Changed: the first opinion in the chat was general. Writing the configuration forced two concrete risks into the document: a burstable VM slows down under the compile load and the PA#5 load test, and a student subscription may restrict regions and sizes. The open-points bullet in `ARCHITECTURE.md` now points to `docs/DEPLOYMENT.md`.
+Rejected: presenting Azure facts as certain. The assistant wrote them from memory (the credit, the spending limit, prices, region limits), so the document lists them under "What to verify before relying on this". The task assignment is also written as a proposal, because the assistant did not know the skills and the free time of the members.
+By hand: 23120337 proposed the Azure VM. Nobody has created the VM, and the other two members have not yet agreed to the assignment.
