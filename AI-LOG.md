@@ -180,3 +180,12 @@ Kept: what the history of `main` shows. PR #6 (the dev set) was merged on 2026-1
 Changed: this commit. It updates the sentences that said the contract change was not made, the dev-set entry above that said there was no pull request, and the first task of Trong Quan.
 Rejected: the assistant's earlier statements that no pull request existed and that CI had not run. It had not looked at GitHub when it said so. It found out by fetching `origin/main` and reading the history, after being asked about the merge order.
 By hand: the merges of #6 and #7 are merge commits under the name Minh Quan Bui. 23120337 should confirm who did them, and correct this line if needed.
+
+## 2026-11-24 — aligning the documents with the PA#3 rubric
+
+Tool: Claude Code (Opus 5.5).
+Asked for: 23120343 asked for a review of the design against the PA#3 rubric, a list of mismatches between the documents, and then the fixes, on the branch `docs/pa3-alignment`.
+Kept: four team decisions, chosen by 23120343 from the options the assistant listed. The review queue shows every verdict of every submission, because rubric criterion 1 expects each submission and each constraint there, and the design only showed violations, unsures and sampled passes. A `failed` submission blocks Publish (contract changed in its own commit). Docker moves from never to ask first for the assistant, while `--privileged`, the Docker socket, host mounts and secrets stay never. CI runs the checker with the model off and fails only when `eval.mjs` exits 2. Also: `rule_error` and `model_off` are written with `decided_by = 'fallback'`, as the schema's CHECK requires; the timeline moves to the new deadline of 29 November; the never list in `AGENTS.md` gets the items the rubric's "Catching your assistant" table asks for; stale statuses (decision 16 merged, the VM exists) are corrected.
+Changed: the assistant first listed the admin endpoints for accounts as planned. They became "later", with a seed command for the test accounts, because the rubric only requires the lab to be created through the API.
+Rejected: fixing the minor wording mismatches (the C4 diagrams, README, `HOST` in a container) in this pull request. They are left for when the code changes them. The claim that `node:sqlite` needs no flag from Node 22.13 was written from the assistant's memory and is to be checked against the Node changelog.
+By hand: 23120343 chose the four decisions. The other members have not reviewed them yet.

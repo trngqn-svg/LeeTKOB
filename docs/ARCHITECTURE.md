@@ -13,7 +13,7 @@ These come from the class brief (sections 3 and 5) and from `AGENTS.md`. The des
 - Hard rules decide the ban-list constraints. When a hard rule decides a constraint, the model is not called for it.
 - The model judges only the semantic constraints. It returns `pass`, `violation` or `unsure` with evidence lines, and nothing else. It never sets a deduction: the TA sets it when the lab is created.
 - Verdicts are visible in one place only, the TA's review queue. Before Publish a student sees test results and never a verdict (FAQ-08). Nothing in this build turns a verdict into a published mark.
-- Publish refuses while any review item is pending, and while any submission of the lab is queued or running.
+- Publish refuses while any review item is pending, and while any submission of the lab is queued, running or failed.
 - Student code runs only in the sandbox. The sandbox has no network, no secrets, no host mounts and no Docker socket.
 - The model receives the statement, one constraint, and the code without comments or identity. Nothing else.
 - An answer from the model that fails the schema, or does not arrive in time, becomes `unsure`.
@@ -121,6 +121,7 @@ The schema below is the whole database. Notes on how it is meant to be read:
 - Lists (`banned_names`, `evidence`) are JSON text. The API parses them; SQL does not need to.
 - The database enforces the rules that must never be broken, so a bug in the code cannot store them: a violation always has evidence, a verdict that fell back always has a reason, one verdict per submission and constraint, one publication per lab, a running submission always has a lock.
 - `submissions` is the queue. There is no separate jobs table, so creating a submission and queueing it is one insert.
+- Every verdict is shown in the TA's review queue (section 6.3), grouped by submission, because the PA#3 rubric (criterion 1) expects the queue to show each submission and each constraint. A `review_items` row marks the verdicts that need the TA's decision: every violation, every unsure and the sampled passes. A pass with no item is shown but needs no decision.
 - Neither a verdict nor a review item has a deduction column. The deduction is `lab_constraints.deduction`, set by the TA when the lab is created, and a constraint is deducted at most once per submission (FAQ-11). The TA's review ends in a final verdict, `pass` or `violation`, with evidence for a violation (FAQ-09).
 - No free text from the model is stored. `model_calls` keeps what was sent, the provider's request id, the cost and whether the answer passed the schema check.
 - The limits on how fast a student can submit are counted from `submissions` itself (section 6.6), with the index on `(student_id, created_at)`. There is no extra table.
@@ -289,8 +290,9 @@ CREATE TABLE verdicts (
   CHECK ((decided_by = 'fallback') = (reason_code IS NOT NULL))
 );
 
--- The TA's review queue. Every violation, every unsure and a sample of the passes get an
--- item. Verdicts reach nobody else. The TA ends an item with a final verdict, pass or
+-- The verdicts that need the TA's decision. Every violation, every unsure and a sample of
+-- the passes get an item. The queue view lists every verdict of the lab and marks these
+-- items. Verdicts reach nobody else. The TA ends an item with a final verdict, pass or
 -- violation, never unsure (FAQ-09); a violation needs at least one evidence line.
 -- There is no deduction here: it comes from lab_constraints (FAQ-11).
 CREATE TABLE review_items (
@@ -337,17 +339,17 @@ CREATE TABLE idempotency_keys (
 
 How today's in-memory store (`src/store.ts`) maps to the tables:
 
-| Today (`src/store.ts`)            | Becomes                                                                                                      |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `User.token`                      | `sessions.token_hash`, the SHA-256 of the token                                                              |
-| `User.role`                       | `users.role`                                                                                                 |
-| `User.classIds`                   | `class_members`                                                                                              |
-| `Lab.pendingReviews`, a number    | The count of `review_items` with status `pending` for the lab, plus the lab's queued and running submissions |
-| `Lab.judgedSubmissions`, a number | The count of judged submissions of the lab, copied into `publications.marks_published`                       |
-| `Lab.publication`                 | One row of `publications`                                                                                    |
-| The idempotency map               | `idempotency_keys`                                                                                           |
+| Today (`src/store.ts`)            | Becomes                                                                                                              |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `User.token`                      | `sessions.token_hash`, the SHA-256 of the token                                                                      |
+| `User.role`                       | `users.role`                                                                                                         |
+| `User.classIds`                   | `class_members`                                                                                                      |
+| `Lab.pendingReviews`, a number    | The count of `review_items` with status `pending` for the lab, plus the lab's queued, running and failed submissions |
+| `Lab.judgedSubmissions`, a number | The count of judged submissions of the lab, copied into `publications.marks_published`                               |
+| `Lab.publication`                 | One row of `publications`                                                                                            |
+| The idempotency map               | `idempotency_keys`                                                                                                   |
 
-How this schema was checked: the file above was loaded into an in-memory SQLite (`node:sqlite` on Node 24.9) and exercised with 43 assertions: claim, lease expiry, reclaim, a stale worker finishing late, exactly-once verdicts, giving up after three attempts, a queued or running submission blocking Publish, a finish after Publish, releasing a job after an error, and the constraints that must refuse bad rows (a violation without evidence, a review ended with unsure, a limit outside the FAQ range). Those checks are not in the repository, and CI runs Node 22, which has not been tried. The behaviour has to be covered by tests written first (section 8). The statements use `RETURNING` and partial indexes, so they need SQLite 3.35 or later.
+How this schema was checked: the file above was loaded into an in-memory SQLite (`node:sqlite` on Node 24.9) and exercised with 43 assertions: claim, lease expiry, reclaim, a stale worker finishing late, exactly-once verdicts, giving up after three attempts, a queued or running submission blocking Publish, a finish after Publish, releasing a job after an error, and the constraints that must refuse bad rows (a violation without evidence, a review ended with unsure, a limit outside the FAQ range). Those checks are not in the repository, and CI runs Node 22, which has not been tried. `node:sqlite` works without a flag from Node 22.13, so CI and the image must use 22.13 or later. The behaviour has to be covered by tests written first (section 8). The statements use `RETURNING` and partial indexes, so they need SQLite 3.35 or later.
 
 ## 4. Worker queue state machine
 
@@ -460,7 +462,7 @@ UPDATE submissions
 - **Exactly once.** Two things protect the verdicts. The guarded `UPDATE` lets only the worker that holds the lease finish, and the unique key on `(submission_id, constraint_id)` refuses a second verdict. So even if a job is judged twice, one set of verdicts is stored.
 - **Stop the worker, submit, start the worker.** The submission stays `queued`. The first claim after the restart takes it, and it is judged once.
 - **A worker dies in the middle.** Its lease runs out. The next claim step puts the job back to `queued` (attempt 2), and another claim takes it. The dead worker's late write, if it ever comes, is refused by the guard.
-- **A job that always crashes the worker.** After `MAX_ATTEMPTS` claims with a lease that ran out, it becomes `failed`. It is not retried forever, and the student sees that the system failed, not that the code was wrong.
+- **A job that always crashes the worker.** After `MAX_ATTEMPTS` claims with a lease that ran out, it becomes `failed`. It is not retried forever, and the student sees that the system failed, not that the code was wrong. A `failed` submission blocks Publish (section 4.3). Until a requeue endpoint exists, an operator puts it back by hand on the VM (`status = 'queued'`, `attempts = 0`).
 - **An error that is not the student's.** The worker releases the job at once with the last statement above: back to `queued` while attempts are left, then `failed`. A Docker outage does not have to wait for three leases to run out.
 - **Lease length.** The lease is longer than any single step (the compile limit, one test limit, one model timeout), and the worker extends it with a heartbeat while it works.
 - **Review items and labs have their own small states.** A review item goes from `pending` to `reviewed`, once, by a TA. A lab goes from `open` to `published`, once, by Publish.
@@ -468,15 +470,16 @@ UPDATE submissions
 
 ### 4.3 Publish
 
-Publish is one transaction too. It refuses if any review item of the lab is pending, if any submission of the lab is `queued` or `running`, or if the lab has a deadline that has not passed (FAQ-12). A submission that is still waiting has no review item yet, so counting only the items would let Publish succeed while a submission has not even been judged.
+Publish is one transaction too. It refuses if any review item of the lab is pending, if any submission of the lab is `queued`, `running` or `failed`, or if the lab has a deadline that has not passed (FAQ-12). A submission that is still waiting has no review item yet, so counting only the items would let Publish succeed while a submission has not even been judged. A `failed` submission has no verdict at all, so it blocks too.
 
 ```sql
 BEGIN IMMEDIATE;
 
 SELECT
   (SELECT COUNT(*) FROM review_items WHERE lab_id = :lab_id AND status = 'pending') AS pending_reviews,
-  (SELECT COUNT(*) FROM submissions WHERE lab_id = :lab_id AND status IN ('queued', 'running')) AS unjudged;
--- If either is above 0: ROLLBACK and answer reviews-pending.
+  (SELECT COUNT(*) FROM submissions WHERE lab_id = :lab_id AND status IN ('queued', 'running')) AS unjudged,
+  (SELECT COUNT(*) FROM submissions WHERE lab_id = :lab_id AND status = 'failed') AS failed;
+-- If any of the three is above 0: ROLLBACK and answer reviews-pending.
 -- If the lab has a deadline in the future: ROLLBACK and refuse.
 
 INSERT INTO publications (lab_id, published_at, published_by, marks_published)
@@ -486,7 +489,7 @@ UPDATE labs SET status = 'published' WHERE id = :lab_id;
 COMMIT;
 ```
 
-Because the finish checks that the lab is open, a submission that is judged after this transaction writes nothing. Once the lab is published, new submissions are refused. A `failed` submission is not counted yet: whether it blocks Publish is an open point (section 7).
+Because the finish checks that the lab is open, a submission that is judged after this transaction writes nothing. Once the lab is published, new submissions are refused.
 
 ## 5. Judging pipeline
 
@@ -522,11 +525,11 @@ flowchart TD
 - **Step 2, load the lab.** The statement, the tests and the constraints of the lab. Each constraint has a `kind`, set by code when the TA saved it: a text that starts with "Do not use" or "Do not call" is `ban_list`, and its banned names are the backticked names in the text. Anything else is `semantic`.
 - **Step 3, sandbox.** The code is compiled inside the sandbox (`g++ -std=c++17 -O2`, the flags the dev set uses) and run on every test. Output is compared token by token, ignoring whitespace. The outcome is one `judge_result`: `accepted`, `wrong_answer`, `compile_error`, `runtime_error`, `time_limit` or `memory_limit`. `judge_detail` keeps the compiler message, or one entry per test with its result and time, never the test input or output (FAQ-02). The limits come from the lab (FAQ-05): CPU 1 to 5 seconds per test, wall time 3 times the CPU time, memory 64 to 512 MB, 16 processes, 1 MB of output. Output over the limit is reported as `runtime_error`.
 - **Step 4, not accepted.** The worker finishes with the `judge_result` and writes no verdict and no review item. The student sees the result. Only Accepted submissions are reviewed.
-- **Step 5, ban-list constraints.** `judge/hard-rules.ts` reads the code with a syntax-aware check, not a text search, and returns `pass` or `violation` with the original source lines as evidence. A banned name inside a comment or a string does not count. A function of the student's own named `sort` does not count. `<algorithm>` included only for `std::swap` does not count. The model is not called, and the verdict has `decided_by = 'hard_rule'`. If the check itself crashes, the verdict is `unsure` with reason `rule_error`, and the other constraints are still judged. How the code is parsed (a real C++ parser or a tokenizer) is not decided yet (section 7).
-- **Step 6, semantic constraints.** If `MODEL_OFF=1`, the verdict is `unsure` with reason `model_off`. Otherwise the pipeline builds a prompt and calls the model with a timeout. Every call is written to `model_calls`, also when it fails.
+- **Step 5, ban-list constraints.** `judge/hard-rules.ts` reads the code with a syntax-aware check, not a text search, and returns `pass` or `violation` with the original source lines as evidence. A banned name inside a comment or a string does not count. A function of the student's own named `sort` does not count. `<algorithm>` included only for `std::swap` does not count. The model is not called, and the verdict has `decided_by = 'hard_rule'`. If the check itself crashes, the verdict is `unsure` with `decided_by = 'fallback'` and reason `rule_error` (the schema requires a reason exactly when the verdict fell back), and the other constraints are still judged. How the code is parsed (a real C++ parser or a tokenizer) is not decided yet (section 7).
+- **Step 6, semantic constraints.** If `MODEL_OFF=1`, the verdict is `unsure` with `decided_by = 'fallback'` and reason `model_off`. Otherwise the pipeline builds a prompt and calls the model with a timeout. Every call is written to `model_calls`, also when it fails.
 - **Step 7, guardrails.** The answer must match the schema: a verdict of `pass`, `violation` or `unsure`, and a list of evidence lines, each with a line number and text. Any other key is refused, so the model cannot add a deduction. A `violation` without evidence is refused. Every evidence line must also match the submitted code exactly (brief section 3); if one does not, the verdict is `unsure` with reason `evidence_mismatch`. A refused answer, a timeout or a provider error gives `unsure` with reason `schema_invalid`, `timeout` or `model_error`, and `decided_by = 'fallback'`. The reason `cost_cap` is for the cost cap per lab, which is PA#4.
 - **Step 8, finish.** One transaction (section 4.1) records the `judge_result`, the verdicts and the review items. A violation and an unsure always get a review item. Each pass is drawn with a 10 percent chance and, if drawn, gets one with reason `sample` (brief section 3).
-- **Step 9, who sees what.** The student sees the status, the judge result and the per-test results, and the constraints with their deductions (FAQ-02, FAQ-06). Before Publish a student sees no constraint verdict (FAQ-08). The TA sees the review queue and ends each item with a final verdict (FAQ-09). The marks do not change until every item is decided, no submission of the lab is queued or running, and the TA presses Publish.
+- **Step 9, who sees what.** The student sees the status, the judge result and the per-test results, and the constraints with their deductions (FAQ-02, FAQ-06). Before Publish a student sees no constraint verdict (FAQ-08). The TA sees the review queue, with every verdict of every submission, and ends each item with a final verdict (FAQ-09). The marks do not change until every item is decided, no submission of the lab is queued, running or failed, and the TA presses Publish.
 
 ### 5.2 What the model receives
 
@@ -562,27 +565,27 @@ The compile limit of 10 s, the source size of 64 KB and the default test limit o
 | ----------------------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------- | ------------------- |
 | `GET /health`                             | Anyone                                     | Liveness probe.                                                                                       | built               |
 | `POST /auth/login`                        | Anyone                                     | Exchange an email and a password for a bearer token.                                                  | planned             |
-| `POST /users`                             | Admin                                      | Create an account.                                                                                    | planned             |
-| `POST /classes`                           | Admin                                      | Create a class.                                                                                       | planned             |
-| `PUT /classes/{classId}/members/{userId}` | Admin                                      | Put a TA or a student in a class.                                                                     | planned             |
+| `POST /users`                             | Admin                                      | Create an account.                                                                                    | later               |
+| `POST /classes`                           | Admin                                      | Create a class.                                                                                       | later               |
+| `PUT /classes/{classId}/members/{userId}` | Admin                                      | Put a TA or a student in a class.                                                                     | later               |
 | `POST /classes/{classId}/labs`            | TA of the class                            | Create a lab with its statement, tests and constraints. The deadline is optional.                     | planned             |
 | `GET /labs/{labId}`                       | TA or student of the class                 | Read the lab with its constraints and deductions. Only the TA gets the tests.                         | planned             |
 | `POST /labs/{labId}/submissions`          | Student of the class                       | Submit C++ source. Answers 202 with a queued submission, or 429 when the student submits too fast.    | planned             |
 | `GET /submissions/{submissionId}`         | The student who submitted, TA of the class | Status, judge result and per-test results. Never a verdict.                                           | planned             |
-| `GET /labs/{labId}/review-queue`          | TA of the class                            | List the review items with verdict, evidence and the constraint's deduction.                          | planned             |
+| `GET /labs/{labId}/review-queue`          | TA of the class                            | Every verdict of the lab by submission, with evidence, the deduction and its review item if any.      | planned             |
 | `POST /review-items/{itemId}/decision`    | TA of the class                            | Decide one review item: pass or violation.                                                            | planned             |
 | `POST /labs/{labId}/publish`              | TA of the class                            | Publish the marks once every review is decided and no submission is waiting. Defined by its contract. | built, on a counter |
 
 ### 6.3 Notes on the planned endpoints
 
 - `POST /auth/login`: body `email` and `password`. Answer 200 with `token`, `expiresAt` and the user. Only the SHA-256 of the token is stored. Wrong credentials give 401.
-- `POST /users` and `POST /classes`: admin only. They are how the test accounts of `PA3.md` are created (one admin, two TAs in two classes, two students in the first TA's class).
+- `POST /users` and `POST /classes`: admin only, later. In PA#3 the test accounts of `PA3.md` (one admin, two TAs in two classes, two students in the first TA's class) are created by a seed command. The rubric (criterion 1) only requires the lab to be created through the API, not the accounts.
 - `POST /classes/{classId}/labs`: body `title`, `statementMd`, an optional `deadline` (none by default), optional `timeLimitMs` (1000 to 5000, default 1000) and `memoryLimitMb` (64 to 512, default 256), a list of `tests` (`input`, `expectedOutput`) and a list of `constraints` (`text`, `deduction`). The answer lists each constraint with its `code`, its `kind` and its `bannedNames`, so the TA sees how the text was understood.
 - `POST /labs/{labId}/submissions`: body `sourceCode`. The answer is 202 with a `submissionId` and `status` `queued`. The request returns before judging; the student polls the submission. Code over the size limit (64 KB, FAQ-05) is refused with 413 and is not stored. A submission is also refused when the lab has a deadline that has passed, or when the lab is published. A student who has too many pending or recent submissions gets 429 and nothing is stored (section 6.6).
 - `GET /submissions/{submissionId}`: `status`, `judgeResult` and `judgeDetail`: the compiler message, or one entry per test with its result and time but never its input or output (FAQ-02). It never contains a verdict, evidence or a model answer.
-- `GET /labs/{labId}/review-queue`: optional `status` filter (`pending` by default). Each item has the submission id, the constraint (`code`, `text`, `deduction`), the verdict, the evidence lines, the reason (`violation`, `unsure` or `sample`) and its status. It is the only place a verdict can be read.
+- `GET /labs/{labId}/review-queue`: every judged submission of the lab with its judge result, and for each constraint (`code`, `text`, `deduction`) the verdict, `decidedBy`, the evidence lines and, when the verdict needs a decision, its review item (id, reason `violation`, `unsure` or `sample`, status, final verdict). An optional filter `pending=true` keeps only the submissions with a pending item. The PA#3 rubric (criterion 1) expects each submission and each constraint here, including a compliant submission whose verdicts are all pass. It is the only place a verdict can be read.
 - `POST /review-items/{itemId}/decision`: body `finalVerdict` (`pass` or `violation`), `evidence` (at least one line, required for a violation) and an optional `note`. There is no choice to leave an unsure item as it is: the TA must decide (FAQ-09). A violation costs the constraint's own deduction, once per submission, and no number is sent here (FAQ-11). After the lab is published the items are read-only, so the call is refused.
-- `POST /labs/{labId}/publish`: defined by its contract, which was changed on 2026-11-24 (section "What blocks publishing" there). The code and the tests do not follow it yet. Publish refuses while a review item is pending or a submission of the lab is queued or running (`reviews-pending`), and, if the lab has a deadline, before it has passed (FAQ-12). Pressing it again changes nothing.
+- `POST /labs/{labId}/publish`: defined by its contract, which was changed on 2026-11-24 (section "What blocks publishing" there). The code and the tests do not follow it yet. Publish refuses while a review item is pending or a submission of the lab is queued, running or failed (`reviews-pending`), and, if the lab has a deadline, before it has passed (FAQ-12). Pressing it again changes nothing.
 
 ### 6.4 Who can see what
 
@@ -614,7 +617,7 @@ The types that exist in `src/problems.ts`:
 | `reviews-pending`         | 409    | Reviews are still pending                    |
 | `internal`                | 500    | Internal server error                        |
 
-The new endpoints will need more types, for example for wrong login credentials, a source file that is too large, a lab that is already published, a submission after the deadline, a Publish before the deadline, and too many submissions (429, `too-many-submissions`). Each is named, with its fixed title and status, in the contract of the endpoint that uses it.
+The publish contract also names `deadline-not-passed` (409), which is not in the code yet. The new endpoints will need more types, for example for wrong login credentials, a source file that is too large, a lab that is already published, a submission after the deadline, a Publish before the deadline, and too many submissions (429, `too-many-submissions`). Each is named, with its fixed title and status, in the contract of the endpoint that uses it.
 
 ### 6.6 Limits on submitting
 
@@ -656,14 +659,15 @@ How to read it:
 
 ## 7. Open points
 
-- **Publish and unjudged submissions (decided).** The publish contract counts review items only. A submission that is still `queued` or `running` has no review item, so a lab could be published while a submission has not been judged. The team decided that Publish also waits for queued and running submissions (section 4.3). The contract now says so (`docs/contract/publish-lab.md`, section "What blocks publishing"). The code and the tests do not follow it yet.
+- **Publish and unjudged submissions (decided).** The publish contract counted review items only. A submission that is still `queued` or `running` has no review item, so a lab could be published while a submission has not been judged. The team decided that Publish also waits for queued and running submissions, and refuses while a submission is `failed` (section 4.3, decision 18). The contract says so (`docs/contract/publish-lab.md`, section "What blocks publishing"). The code and the tests do not follow it yet.
+- **The review queue shows every verdict (decided, 2026-11-24).** The PA#3 rubric (criterion 1) expects the queue to show each submission and each constraint, so a compliant submission must appear even when none of its passes was sampled. Only the items need a decision (section 6.3).
 - **Titles are fixed per problem type.** `forbidden-role` is titled "Only TAs may publish marks", so the endpoints that only an admin or only a student may call need their own role types, or a more general title decided in a contract-first commit.
 - **What a student may see (answered by the FAQ).** Constraints with their deductions are visible (FAQ-06). Before Publish a student sees only test results (FAQ-08). Both are applied; see section 1.1.
 - **Sampling the passes.** The brief (section 3) sends a random 10% of the pass verdicts to the review queue, so it is part of the build even though the PA#3 rubric does not mark it. Each pass is drawn with a 10% chance. The FAQ adds rounding up and at least one pass per lab (FAQ-10), which needs a pass over the whole lab and is left for later.
 - **Guardrails of PA#4.** The brief (section 3) asks for evidence lines that match the code exactly and a cost cap per lab. The reasons `evidence_mismatch` and `cost_cap` already exist in the schema, and the evidence check is part of step 7. The cost cap itself is PA#4.
-- **Choices not made yet.** The database (SQLite is the proposal, Postgres would change the schema file only), how the hard rules read C++ (a parser such as tree-sitter, or a tokenizer), where the system is hosted (proposed: one Azure for Students VM, configured in `docs/DEPLOYMENT.md`; it needs Docker and must stay up until the PA#4 marks are out), and the model.
+- **Choices not made yet.** The database (SQLite is the proposal, Postgres would change the schema file only), how the hard rules read C++ (a parser such as tree-sitter, or a tokenizer), the model, and how the sandbox splits compiling and running into containers, with the writable `tmpfs` that `g++` needs and how the worker cuts output at 1 MB (task Q6). The host is an Azure VM that exists since 2026-11-24 (`docs/DEPLOYMENT.md`); it needs Docker and must stay up until the PA#4 marks are out.
 - **Limits on submitting (decided, to be reviewed).** The check in section 6.6 protects submissions only. Whether to add a rate-limit library or a limit at the proxy for login and the other routes is to be reviewed later (decision 19). The default numbers are a guess, kept above what the lecturer's flows need.
-- **A `failed` submission (open).** It has no verdict. Recommendation: Publish refuses while one exists, until an admin requeues it or the TA gives a manual score. Not decided.
+- **A `failed` submission (decided, 2026-11-24).** It has no verdict, so Publish refuses while one exists. A requeue endpoint is not designed: until it is, an operator puts the submission back by hand (section 4.2).
 - **Two points for the lecturer (open).** The rubric is silent on whether the review queue shows every submission of a student or only the last (FAQ-02), and on whether a lab needs a deadline (FAQ-12). See section 1.1.
 - **Not designed.** Deleting idempotency keys after 24 hours, deleting expired sessions, requeueing a `failed` submission by hand, the log of changed verdicts (FAQ-10), edits of constraints (FAQ-07) and appeals (FAQ-13, FAQ-14).
 
@@ -675,8 +679,9 @@ Tests land before, or in the same commit as, the code they test, one part per co
 - Queue: stop the worker, submit, start the worker, and check that one set of verdicts exists. Also a stale worker that finishes after its lease ran out, which must write nothing.
 - Hard rules: the traps (own `sort`, a banned name in a comment or a string, `<algorithm>` only for `std::swap`) must not fire, and the plain and disguised violations must.
 - Model call: a fake model that returns bad JSON, an extra key, or nothing in time, each of which must give `unsure`. No test uses the real model.
-- Review queue: Publish refuses while an item is pending and while a submission is queued or running. A worker that finishes after Publish writes nothing. A student request never returns a verdict before Publish.
+- Review queue: a compliant submission appears with all its verdicts. Publish refuses while an item is pending and while a submission is queued, running or failed. A worker that finishes after Publish writes nothing. A student request never returns a verdict before Publish.
 - Isolation: a TA of another class gets `lab-not-found` for the lab and for its queue.
 - Submitting: with a fake clock, the 16th pending submission and the 31st submission within a minute get 429 with `Retry-After`, a refused submission is not stored, and a student near the limit does not slow another student.
 - Checker: with the model on it writes a call log with the provider's request ids (a fake provider in the test), and with `MODEL_OFF=1` it opens no connection.
+- Eval in CI: the checker image runs with `MODEL_OFF=1` and `--network none` on the dev set, and `eval.mjs` scores the output. The job fails only on exit code 2 (an invalid prediction file). Exit code 1 (a threshold not met) is accepted in PA#3, because the rubric sets no pass mark on the eval and, with the model off, every semantic pair is unsure.
 - Dev set: the SHA-256 of `eval.mjs` and `labels.jsonl` is pinned, so an edit turns CI red.

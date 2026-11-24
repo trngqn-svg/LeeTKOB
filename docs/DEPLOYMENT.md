@@ -1,6 +1,6 @@
 # LeeTKOB deployment: the VM
 
-This file says what machine LeeTKOB runs on and how it is set up. It is the plan for PA#3. **Nothing here exists yet**: the VM has not been created, and several numbers below must be checked in the Azure portal before anyone relies on them (section 8). Choosing Azure is decision 15 in `docs/DECISIONS.md`, and it is only proposed.
+This file says what machine LeeTKOB runs on and how it is set up. It is the plan for PA#3. **The VM exists since 2026-11-24** and team members can log in over SSH, but its region, size and setup are not written here yet (task Q1), and Docker and the services of section 4 are not installed yet as far as the repository shows. Several numbers below must be checked in the Azure portal before anyone relies on them (section 8). Choosing Azure is decision 15 in `docs/DECISIONS.md`, and it is only proposed.
 
 Why one machine: the PA#3 rubric asks for a public deployment that stays up until the PA#4 marks are out. The judge worker starts Docker containers, so the host must give it Docker. The API, the worker and the SQLite file run on the same host (`docs/ARCHITECTURE.md`, section 2.3).
 
