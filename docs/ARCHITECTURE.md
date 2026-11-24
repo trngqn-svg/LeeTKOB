@@ -582,7 +582,7 @@ The compile limit of 10 s, the source size of 64 KB and the default test limit o
 - `GET /submissions/{submissionId}`: `status`, `judgeResult` and `judgeDetail`: the compiler message, or one entry per test with its result and time but never its input or output (FAQ-02). It never contains a verdict, evidence or a model answer.
 - `GET /labs/{labId}/review-queue`: optional `status` filter (`pending` by default). Each item has the submission id, the constraint (`code`, `text`, `deduction`), the verdict, the evidence lines, the reason (`violation`, `unsure` or `sample`) and its status. It is the only place a verdict can be read.
 - `POST /review-items/{itemId}/decision`: body `finalVerdict` (`pass` or `violation`), `evidence` (at least one line, required for a violation) and an optional `note`. There is no choice to leave an unsure item as it is: the TA must decide (FAQ-09). A violation costs the constraint's own deduction, once per submission, and no number is sent here (FAQ-11). After the lab is published the items are read-only, so the call is refused.
-- `POST /labs/{labId}/publish`: defined by its contract, which has to change first, in its own commit. Publish refuses while a review item is pending or a submission of the lab is queued or running (`reviews-pending`), and, if the lab has a deadline, before it has passed (FAQ-12). Pressing it again changes nothing.
+- `POST /labs/{labId}/publish`: defined by its contract, which was changed on 2026-11-24 (section "What blocks publishing" there). The code and the tests do not follow it yet. Publish refuses while a review item is pending or a submission of the lab is queued or running (`reviews-pending`), and, if the lab has a deadline, before it has passed (FAQ-12). Pressing it again changes nothing.
 
 ### 6.4 Who can see what
 
@@ -656,7 +656,7 @@ How to read it:
 
 ## 7. Open points
 
-- **Publish and unjudged submissions (decided).** The publish contract counts review items only. A submission that is still `queued` or `running` has no review item, so a lab could be published while a submission has not been judged. The team decided that Publish also waits for queued and running submissions (section 4.3). That is a change to `docs/contract/publish-lab.md`, in its own commit first, and it is not made yet.
+- **Publish and unjudged submissions (decided).** The publish contract counts review items only. A submission that is still `queued` or `running` has no review item, so a lab could be published while a submission has not been judged. The team decided that Publish also waits for queued and running submissions (section 4.3). The contract now says so (`docs/contract/publish-lab.md`, section "What blocks publishing"). The code and the tests do not follow it yet.
 - **Titles are fixed per problem type.** `forbidden-role` is titled "Only TAs may publish marks", so the endpoints that only an admin or only a student may call need their own role types, or a more general title decided in a contract-first commit.
 - **What a student may see (answered by the FAQ).** Constraints with their deductions are visible (FAQ-06). Before Publish a student sees only test results (FAQ-08). Both are applied; see section 1.1.
 - **Sampling the passes.** The brief (section 3) sends a random 10% of the pass verdicts to the review queue, so it is part of the build even though the PA#3 rubric does not mark it. Each pass is drawn with a 10% chance. The FAQ adds rounding up and at least one pass per lab (FAQ-10), which needs a pass over the whole lab and is left for later.

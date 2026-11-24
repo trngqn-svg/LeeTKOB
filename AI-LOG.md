@@ -89,7 +89,7 @@ Asked for: put the dev set into the repository unchanged, and keep our own tools
 Kept: `leetkob-eval/` with 128 files (`ac0e2bb`) and the ignore entries in `.prettierignore` and `eslint.config.js` (`0d87b9c`). Checked: the SHA-256 of `eval.mjs` starts `c836edd8713521bb` and the one of `labels.jsonl` starts `262cda7b0ef5612e`, the two values in the rubric. A recursive `diff` against the clone shows no difference, and the bytes stored in Git hash the same.
 Changed: the first ESLint ignore was `"leetkob-eval"`. It became `"leetkob-eval/"`, the directory form, after reading how ESLint takes ignores. CI has not confirmed it yet. The assistant's first count of carriage-return bytes gave two different answers (127 files and none), so both were thrown away and the bytes were counted with a script: 0 in all 128 files.
 Rejected: a git submodule or a download step in CI, because the marker's container has no network. Letting Prettier or ESLint read the folder: Prettier would rewrite `eval.mjs`, and ESLint would reject its use of `process` and `console`.
-By hand: 23120337 gave the link, decided to import the set, told the assistant to leave lint, format, type check and tests to GitHub Actions, and approved the commits and the push of the branch `chore/pa3-dev-set`. No pull request yet.
+By hand: 23120337 gave the link, decided to import the set, told the assistant to leave lint, format, type check and tests to GitHub Actions, and approved the commits and the push of the branch `chore/pa3-dev-set`. It was merged into `main` on 2026-11-23 as PR #6.
 
 ## 2026-11-23 — C4 diagrams in docs/c4
 
@@ -171,3 +171,12 @@ Kept: `docs/DEPLOYMENT.md` (size, image, disk, swap, network rules, the services
 Changed: the first opinion in the chat was general. Writing the configuration forced two concrete risks into the document: a burstable VM slows down under the compile load and the PA#5 load test, and a student subscription may restrict regions and sizes. The open-points bullet in `ARCHITECTURE.md` now points to `docs/DEPLOYMENT.md`.
 Rejected: presenting Azure facts as certain. The assistant wrote them from memory (the credit, the spending limit, prices, region limits), so the document lists them under "What to verify before relying on this". The task assignment is also written as a proposal, because the assistant did not know the skills and the free time of the members.
 By hand: 23120337 proposed the Azure VM. Nobody has created the VM, and the other two members have not yet agreed to the assignment.
+
+## 2026-11-24 — pull requests that were already merged, and a wrong statement by the assistant
+
+Tool: Claude Code (Sonnet 5.5).
+Asked for: which pull request to merge, and in which order.
+Kept: what the history of `main` shows. PR #6 (the dev set) was merged on 2026-11-23. PR #7 (the architecture documents) was merged on 2026-11-24 with the commits up to `4f8875c` only. The commits pushed to `docs/architecture` after that (the `AI-LOG.md` entries, `DEPLOYMENT.md`, `TASKS.md` and the hosting update) are not in `main`, and neither is the contract change. The order proposed: the contract first, then a new pull request with the rest.
+Changed: this commit. It updates the sentences that said the contract change was not made, the dev-set entry above that said there was no pull request, and the first task of Trong Quan.
+Rejected: the assistant's earlier statements that no pull request existed and that CI had not run. It had not looked at GitHub when it said so. It found out by fetching `origin/main` and reading the history, after being asked about the merge order.
+By hand: the merges of #6 and #7 are merge commits under the name Minh Quan Bui. 23120337 should confirm who did them, and correct this line if needed.

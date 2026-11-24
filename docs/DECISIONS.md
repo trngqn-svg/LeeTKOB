@@ -203,11 +203,11 @@ The reason behind all of them is in the brief: a wrongful deduction can push a s
 
 ### 18. Publish also waits for queued and running submissions
 
-- **Status:** proposed. One team member agreed on 2026-11-24. It is not in the contract yet.
+- **Status:** proposed. One team member agreed on 2026-11-24. The contract now says it (`docs/contract/publish-lab.md`, section "What blocks publishing"). The code and the tests do not follow it yet.
 - **Choice:** Publish refuses while any review item is pending and while any submission of the lab is `queued` or `running`. The worker's finish also refuses to write into a lab that is already published.
 - **Other options:** count only the review items, as the contract does today. Count only the latest submission of each student, which would follow FAQ-02 but not the rubric's walk-through.
 - **Why:** a submission that is still waiting has no review item, so counting only the items lets Publish succeed with a submission that was not even judged. That breaks the brief's rule that marks are published only after the TA has reviewed them (section 3). The gap and the fix were both run against the real schema.
-- **Trade-offs:** a stuck job blocks Publish until it is judged or fails: up to about 3 minutes with the lease rules, less with the release on error. A `failed` submission is not counted yet, which is an open point. Publish reads one more count in its transaction. The contract and its tests have to change first, each in its own commit.
+- **Trade-offs:** a stuck job blocks Publish until it is judged or fails: up to about 3 minutes with the lease rules, less with the release on error. A `failed` submission is not counted yet, which is an open point. Publish reads one more count in its transaction. The tests and the code have to follow the contract, each in its own commit.
 - **Change it when:** the team adopts FAQ-02's rule that only the last submission is graded. Then count only those submissions.
 
 ### 19. A database check to limit how fast a student can submit
