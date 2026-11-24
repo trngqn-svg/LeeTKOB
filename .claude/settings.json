@@ -23,6 +23,7 @@
       "Bash(git merge:*)",
       "Bash(git rebase:*)",
       "Bash(curl:*)",
+      "Bash(docker:*)",
       "Edit(.github/workflows/**)",
       "Edit(tests/**)",
       "Edit(docs/contract/**)"
@@ -38,7 +39,8 @@
       "Bash(git reset --hard:*)",
       "Bash(git filter-branch:*)",
       "Bash(rm -rf:*)",
-      "Bash(docker:*)"
+      "Bash(docker run --privileged:*)",
+      "Bash(docker run -v /var/run/docker.sock:*)"
     ]
   }
 }
