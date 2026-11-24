@@ -191,6 +191,87 @@ export function registerSubmissions(
       });
     },
   );
+
+  const findSubmission = db.prepare(`
+    SELECT s.id, s.lab_id, s.student_id, s.status, s.judge_result, s.judge_detail,
+           s.source_code, s.created_at, s.started_at, s.finished_at, l.class_id
+      FROM submissions s JOIN labs l ON l.id = s.lab_id
+     WHERE s.id = ?`);
+
+  app.get<{ Params: { submissionId: string } }>(
+    "/submissions/:submissionId",
+    (request, reply) => {
+      const { submissionId } = request.params;
+      const instance = `/submissions/${submissionId}`;
+
+      const user = authenticate(db, request.headers.authorization, now());
+      if (!user) {
+        return sendProblem(
+          reply,
+          "unauthenticated",
+          instance,
+          "Send a valid Bearer token.",
+        );
+      }
+      if (user.role === "admin") {
+        return sendProblem(
+          reply,
+          "role-not-allowed",
+          instance,
+          "An admin has no access to submissions.",
+          { requiredRole: ["student", "ta"] },
+        );
+      }
+
+      const row = findSubmission.get(submissionId) as SubmissionRow | undefined;
+      const allowed =
+        row !== undefined &&
+        (user.role === "student"
+          ? row.student_id === user.id
+          : isMember(db, user.id, row.class_id));
+      // Same answer for every cause: ids of other students' submissions must not leak.
+      if (!row || !allowed) {
+        return sendProblem(
+          reply,
+          "submission-not-found",
+          instance,
+          "No submission with this id is yours to read.",
+        );
+      }
+
+      // Only the student-facing columns: never a verdict, a lease or a test's data.
+      const judged = row.status === "judged";
+      return reply.header("cache-control", "private, no-store").send({
+        id: row.id,
+        labId: row.lab_id,
+        studentId: row.student_id,
+        status: row.status,
+        judgeResult: judged ? row.judge_result : null,
+        judgeDetail:
+          judged && row.judge_detail !== null
+            ? (JSON.parse(row.judge_detail) as unknown)
+            : null,
+        sourceCode: row.source_code,
+        createdAt: row.created_at,
+        startedAt: row.started_at,
+        finishedAt: row.finished_at,
+      });
+    },
+  );
+}
+
+interface SubmissionRow {
+  id: string;
+  lab_id: string;
+  student_id: string;
+  status: string;
+  judge_result: string | null;
+  judge_detail: string | null;
+  source_code: string;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  class_id: string;
 }
 
 interface LabRow {

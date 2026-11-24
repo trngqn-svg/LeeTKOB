@@ -25,6 +25,7 @@ export const PROBLEMS = {
   "lab-published": { status: 409, title: "The lab is already published" },
   "deadline-passed": { status: 409, title: "The deadline has passed" },
   "too-many-submissions": { status: 429, title: "Too many submissions" },
+  "submission-not-found": { status: 404, title: "Submission not found" },
   internal: { status: 500, title: "Internal server error" },
 } as const;
 
