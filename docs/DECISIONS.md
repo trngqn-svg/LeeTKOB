@@ -4,33 +4,33 @@ This file records the main architecture decisions of LeeTKOB: what was chosen, w
 
 Each decision has a status:
 
-- **decided**: already in the repository (PA#2).
+- **decided**: in the repository since PA#2, or confirmed by a team member (the section says who and when).
 - **proposed**: the design for PA#3 in `docs/ARCHITECTURE.md`. The team has not confirmed it.
 - **open**: no choice has been made.
 
-Where the team wrote a reason down, the reason starts with "Recorded" and names the file. Otherwise it starts with "Inferred": the reason was worked out from the code and the class brief, and the team should confirm or correct it. The reasons of the proposed decisions are not recorded anywhere yet. They are the reasoning behind the proposal, offered for the team to accept or change. This file was drafted with Claude from the repository. Nobody on the team has reviewed it yet.
+Where the team wrote a reason down, the reason starts with "Recorded" and names the file. Otherwise it starts with "Inferred": the reason was worked out from the code and the class brief, and the team should confirm or correct it. The reasons of the proposed decisions are not recorded anywhere yet. They are the reasoning behind the proposal, offered for the team to accept or change. This file was drafted with Claude from the repository and merged through pull requests #7 and #9. A merge is not a confirmation: each proposed decision is confirmed one by one, in its own section.
 
-| No. | Decision                                                | Status   | Main trade-off                                         |
-| --- | ------------------------------------------------------- | -------- | ------------------------------------------------------ |
-| 1   | Node 22, TypeScript and Fastify 5                       | decided  | One thread, so CPU-heavy work must stay out of the API |
-| 2   | Errors as problem+json with fixed titles                | decided  | A fixed title cannot fit every case, so more types     |
-| 3   | Contract first, tests copy the contract                 | decided  | More writing, and two copies that can drift            |
-| 4   | One CI job per check, and a secret scan                 | decided  | More CI minutes                                        |
-| 5   | Protected main, three permission tiers                  | decided  | Every commit and push needs a human answer             |
-| 6   | Gemini free tier with a US$0 cap                        | decided  | Quota limits and HTTP 429 under load                   |
-| 7   | One repository, two processes                           | proposed | One host only, because of the shared SQLite file       |
-| 8   | SQLite as the database and the queue                    | proposed | One writer at a time, and an experimental module       |
-| 9   | Leases and a guarded finish                             | proposed | A job can be judged twice                              |
-| 10  | Our own Docker sandbox, not Judge0                      | proposed | Shared kernel, and the worker needs Docker             |
-| 11  | Syntax-aware parser for the hard rules                  | proposed | Syntax without meaning: macros and aliases             |
-| 12  | One model call per semantic constraint                  | proposed | More calls and more quota                              |
-| 13  | Strict rules for model input and output                 | proposed | More unsure, and comments that explain intent are lost |
-| 14  | Verdicts only in the review queue, API only             | proposed | TA workload, and no early signal for students          |
-| 15  | Hosting on one Azure for Students VM                    | proposed | Burstable CPU, unknown region limits, one owner        |
-| 16  | Dev set copied unchanged, pinned by hash                | proposed | A manual update if the lecturer republishes it         |
-| 17  | The lecturer's requirements come first                  | decided  | Some FAQ rules are delayed or reduced                  |
-| 18  | Publish also waits for queued and running submissions   | proposed | A stuck job blocks Publish                             |
-| 19  | A database check to limit how fast a student can submit | decided  | Protects submissions only, not login                   |
+| No. | Decision                                                 | Status   | Main trade-off                                             |
+| --- | -------------------------------------------------------- | -------- | ---------------------------------------------------------- |
+| 1   | Node 22, TypeScript and Fastify 5                        | decided  | One thread, so CPU-heavy work must stay out of the API     |
+| 2   | Errors as problem+json with fixed titles                 | decided  | A fixed title cannot fit every case, so more types         |
+| 3   | Contract first, tests copy the contract                  | decided  | More writing, and two copies that can drift                |
+| 4   | One CI job per check, and a secret scan                  | decided  | More CI minutes                                            |
+| 5   | Protected main, three permission tiers                   | decided  | Every commit, push and docker command needs a human answer |
+| 6   | Gemini free tier with a US$0 cap                         | decided  | Quota limits and HTTP 429 under load                       |
+| 7   | One repository, two processes                            | proposed | One host only, because of the shared SQLite file           |
+| 8   | SQLite as the database and the queue                     | proposed | One writer at a time, and an experimental module           |
+| 9   | Leases and a guarded finish                              | proposed | A job can be judged twice                                  |
+| 10  | Our own Docker sandbox, not Judge0                       | proposed | Shared kernel, and the worker needs Docker                 |
+| 11  | Syntax-aware parser for the hard rules                   | proposed | Syntax without meaning: macros and aliases                 |
+| 12  | One model call per semantic constraint                   | proposed | More calls and more quota                                  |
+| 13  | Strict rules for model input and output                  | proposed | More unsure, and comments that explain intent are lost     |
+| 14  | Verdicts only in the review queue, API only              | proposed | TA workload, and no early signal for students              |
+| 15  | Hosting on one Azure VM                                  | proposed | Burstable CPU, one owner                                   |
+| 16  | Dev set copied unchanged, pinned by hash                 | decided  | A manual update if the lecturer republishes it             |
+| 17  | The lecturer's requirements come first                   | decided  | Some FAQ rules are delayed or reduced                      |
+| 18  | Publish waits for queued, running and failed submissions | decided  | A stuck or failed job blocks Publish                       |
+| 19  | A database check to limit how fast a student can submit  | decided  | Protects submissions only, not login                       |
 
 ## Fixed by the brief
 
@@ -51,7 +51,7 @@ The reason behind all of them is in the brief: a wrongful deduction can push a s
 - **Status:** decided.
 - **Choice:** one language, TypeScript in strict mode, run by `tsx` with no build step. Fastify 5 for HTTP, Vitest for tests, ESLint and Prettier for checks (`AGENTS.md`).
 - **Other options:** Python with FastAPI. Node with Express. Separate services in several languages, as in the brief's original proposal (three services, three languages, five data stores).
-- **Why:** Inferred, the repository does not record it. With one language the API, the worker and the checker share code, above all the hard rules and the model client. `app.inject()` lets the contract tests call the app without a network. Node 22 ships `node:sqlite`, so a database needs no native package. The brief allows any stack and says that fewer moving parts is a legitimate decision.
+- **Why:** Inferred, the repository does not record it. With one language the API, the worker and the checker share code, above all the hard rules and the model client. `app.inject()` lets the contract tests call the app without a network. Node 22 ships `node:sqlite` (without a flag from 22.13), so a database needs no native package. The brief allows any stack and says that fewer moving parts is a legitimate decision.
 - **Trade-offs:** Node runs JavaScript on one thread, so CPU-heavy work such as compiling and parsing code has to stay out of the API process. That is one reason for a separate worker. Running TypeScript through `tsx` avoids a build step, but `tsx` is a dev dependency in `package.json`, so a production image must install it or the team must move it. Strict TypeScript catches mistakes early and costs some writing speed.
 - **Change it when:** start-up time or image size matters, or someone on the team cannot work in TypeScript.
 
@@ -85,11 +85,12 @@ The reason behind all of them is in the brief: a wrongful deduction can push a s
 ### 5. Protected main, and three permission tiers for the assistant
 
 - **Status:** decided.
-- **Choice:** `main` accepts only pull requests with five required checks. The coding assistant works in three tiers. Allowed: read, edit `src/`, run the checks. Ask first: install packages, commit, push, tag, edit tests, contracts or workflows, make network calls. Never: read `.env`, push to `main`, force-push, run Docker on the host, call a real model from tests.
+- **Choice:** `main` accepts only pull requests with five required checks. The coding assistant works in three tiers. Allowed: read, edit `src/`, run the checks. Ask first: install packages, commit, push, tag, edit tests, contracts or workflows, make network calls, run any `docker` command. Never: read `.env`, push to `main`, force-push, give a container `--privileged`, the Docker socket, a host mount or a secret, call a real model from tests.
 - **Other options:** trust the assistant fully, or allow only reads.
 - **Why:** Recorded in `docs/PERMISSIONS.md`: a test, the contract or CI can be edited to make a check pass, and pushing or tagging is visible to others. The never tier covers what cannot be undone.
-- **Trade-offs:** every commit, push and package install needs a human answer, which costs time near a deadline. The rule against Docker on the host means the sandbox tests can run only in CI, so a developer cannot repeat them locally without breaking the rule. At the moment the checks are also left to CI instead of being run locally, so a mistake shows only after a push.
-- **Change it when:** the Docker rule blocks real work, for example while debugging the sandbox. Change that line of `docs/PERMISSIONS.md` in its own pull request.
+- **Trade-offs:** every commit, push, package install and docker command needs a human answer, which costs time near a deadline. At the moment the checks are also left to CI instead of being run locally, so a mistake shows only after a push.
+- **Changed on 2026-11-24:** Docker moved from never to ask first. The PA#3 tasks need it (the sandbox, its attack submissions, the checker image and the deployment), and a flat ban meant a developer could not repeat the sandbox tests locally. What makes Docker dangerous stays in never: `--privileged`, the Docker socket, host mounts and secrets in a container.
+- **Change it when:** the ask-first prompts for Docker slow real work down. Then allow the few exact commands the sandbox tests use.
 
 ### 6. Google Gemini free tier with a US$0 cap
 
@@ -132,7 +133,7 @@ The reason behind all of them is in the brief: a wrongful deduction can push a s
 ### 10. Our own Docker sandbox instead of Judge0
 
 - **Status:** proposed.
-- **Choice:** the worker starts one short-lived container per submission with `docker run`. The code goes in on stdin. The container has no network, a memory limit equal to its swap limit, a process limit, a non-root user, a read-only filesystem, dropped capabilities and no mounts.
+- **Choice:** the worker starts short-lived containers with `docker run`, never a long-lived one. Whether compiling and the tests share one container or each run gets its own, the writable `tmpfs` that `g++` needs, and how the worker cuts output at 1 MB are settled in task Q6 and then written here. The code goes in on stdin. The container has no network, a memory limit equal to its swap limit, a process limit, a non-root user, a read-only filesystem, dropped capabilities and no mounts.
 - **Other options:** a self-hosted Judge0 (the rubric accepts it, and then the tests attack its configuration). gVisor or Firecracker for stronger isolation.
 - **Why:** with our own flags we can prove each of the nine minimums with our own attack submission, and there is no extra service to run. Judge0 brings its own stack and a large configuration surface to secure.
 - **Trade-offs:** a container shares the host kernel, so a kernel bug could let code escape. The flags reduce that risk but do not remove it. The worker needs access to Docker, which is close to root on the host, so it must accept no inbound connections. A container per run costs start-up time compared with a warm pool. The sandbox tests need Docker, so they run only in CI.
@@ -168,15 +169,15 @@ The reason behind all of them is in the brief: a wrongful deduction can push a s
 ### 14. Verdicts only in the review queue, and no web interface in PA#3
 
 - **Status:** proposed.
-- **Choice:** a verdict can be read only through the TA's review queue. A student sees the status and the judge result of their own submission. PA#3 has an API and no web pages.
+- **Choice:** a verdict can be read only through the TA's review queue. The queue shows every verdict of every judged submission, and marks the ones that need the TA's decision (every violation, every unsure and the sampled passes). A student sees the status and the judge result of their own submission. PA#3 has an API and no web pages.
 - **Other options:** show verdicts to students at once. Build a web interface now.
-- **Why:** the brief makes the human gate the step that is hard to undo, and nothing in this build turns a verdict into a mark. The FAQ agrees: before Publish a student sees only test results (FAQ-08). The rubric accepts the API for the walk-through, and with two days left the time goes into the sandbox, the queue and the model.
+- **Why:** the brief makes the human gate the step that is hard to undo, and nothing in this build turns a verdict into a mark. The FAQ agrees: before Publish a student sees only test results (FAQ-08). The rubric accepts the API for the walk-through, and with five days left the time goes into the sandbox, the queue and the model. The PA#3 rubric (criterion 1) expects the queue to show each submission and each constraint, so a compliant submission whose passes were not sampled must still appear; that is why the queue lists every verdict and not only the items (team decision, 2026-11-24).
 - **Trade-offs:** the TA must review every violation and every unsure before Publish, which is work and delays the marks. Students get no early signal about a constraint violation. Demos and grading use `curl` or scripts, which is harder to follow than a screen. A web interface is still needed for the real-time results of PA#5.
 - **Change it when:** the lecturer asks for a screen in the demo, or the product owners change FAQ-08.
 
-### 15. Hosting on one Azure for Students VM
+### 15. Hosting on one Azure VM
 
-- **Status:** proposed. A team member suggested it on 2026-11-24 and the configuration is in `docs/DEPLOYMENT.md`. The VM is not created yet.
+- **Status:** proposed. A team member suggested it on 2026-11-24 and the configuration is in `docs/DEPLOYMENT.md`. The VM exists since 2026-11-24 and team members can log in over SSH. Its subscription, region and size are still to be written in `docs/DEPLOYMENT.md` (task Q1).
 - **Choice:** one Ubuntu VM (2 vCPU and 4 GiB at first) in an Azure for Students subscription. It runs the API, the worker and the sandbox containers with Docker, behind Caddy with HTTPS on a free Azure DNS name.
 - **Other options:** a small VPS from another provider. A team member's computer with a tunnel such as Cloudflare Tunnel. A platform that cannot run Docker, which cannot run the sandbox. Serverless.
 - **Why:** the worker starts containers, so the host must be a machine with Docker, and a VM stays up on its own. The student credit should cover the weeks needed, and, as far as we know, it has a spending limit, which suits a deployment whose test accounts are public. There is no domain to buy.
@@ -185,7 +186,7 @@ The reason behind all of them is in the brief: a wrongful deduction can push a s
 
 ### 16. The dev set copied unchanged and pinned by hash
 
-- **Status:** proposed. It sits on the branch `chore/pa3-dev-set`, which is not merged yet.
+- **Status:** decided. Merged in pull request #6 on 2026-11-23. On 2026-11-24 the SHA-256 of `eval.mjs` (`c836edd8713521bb…`) and `labels.jsonl` (`262cda7b0ef5612e…`) on `main` matched the prefixes in the PA#3 rubric. The test that pins them is not written yet.
 - **Choice:** the lecturer's dev set lives unchanged in `leetkob-eval/`. It is excluded from lint and format. A planned test pins the SHA-256 of `eval.mjs` and `labels.jsonl`. The team's own cases go in a separate folder.
 - **Other options:** a git submodule or a download step in CI. Editing the files to fit our tools.
 - **Why:** the rubric scores 0 on the checker criterion if the dev set or `eval.mjs` was edited, and the lecturer re-scores with their own copy. A copy keeps the repository self-contained, so CI and the marker's container need no network. Prettier would rewrite `eval.mjs` and ESLint would reject its use of `process`, so both must skip the folder.
@@ -201,13 +202,13 @@ The reason behind all of them is in the brief: a wrongful deduction can push a s
 - **Trade-offs:** some FAQ rules are delayed or reduced, so the product can differ from what the product owners wrote. The deadline is optional, and every Accepted submission is reviewed instead of only the last one (section 1.1 of `docs/ARCHITECTURE.md`). Each such case needs an answer from the lecturer, and until it comes the rubric's walk-through decides. The FAQ can also change, so a citation must name the entry.
 - **Change it when:** the lecturer says that a FAQ rule must be followed as written.
 
-### 18. Publish also waits for queued and running submissions
+### 18. Publish also waits for queued, running and failed submissions
 
-- **Status:** proposed. One team member agreed on 2026-11-24. The contract now says it (`docs/contract/publish-lab.md`, section "What blocks publishing"). The code and the tests do not follow it yet.
-- **Choice:** Publish refuses while any review item is pending and while any submission of the lab is `queued` or `running`. The worker's finish also refuses to write into a lab that is already published.
+- **Status:** decided on 2026-11-24 by a team member, together with the rule for `failed` submissions. The contract says it (`docs/contract/publish-lab.md`, section "What blocks publishing"). The code and the tests do not follow it yet.
+- **Choice:** Publish refuses while any review item is pending and while any submission of the lab is `queued`, `running` or `failed`. The worker's finish also refuses to write into a lab that is already published.
 - **Other options:** count only the review items, as the contract does today. Count only the latest submission of each student, which would follow FAQ-02 but not the rubric's walk-through.
 - **Why:** a submission that is still waiting has no review item, so counting only the items lets Publish succeed with a submission that was not even judged. That breaks the brief's rule that marks are published only after the TA has reviewed them (section 3). The gap and the fix were both run against the real schema.
-- **Trade-offs:** a stuck job blocks Publish until it is judged or fails: up to about 3 minutes with the lease rules, less with the release on error. A `failed` submission is not counted yet, which is an open point. Publish reads one more count in its transaction. The tests and the code have to follow the contract, each in its own commit.
+- **Trade-offs:** a stuck job blocks Publish until it is judged or fails: up to about 3 minutes with the lease rules, less with the release on error. A `failed` submission blocks Publish until it is queued again, and there is no endpoint for that yet, so an operator does it by hand on the VM. Publish reads two more counts in its transaction. The tests and the code have to follow the contract, each in its own commit.
 - **Change it when:** the team adopts FAQ-02's rule that only the last submission is graded. Then count only those submissions.
 
 ### 19. A database check to limit how fast a student can submit

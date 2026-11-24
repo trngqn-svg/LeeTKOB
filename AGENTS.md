@@ -5,9 +5,9 @@ review queue, then Publish. Read `docs/contract/` before touching an endpoint.
 
 ## Stack
 
-- Node 22, TypeScript (strict, run by `tsx`, no build step), Fastify 5.
+- Node 22.13 or later (`node:sqlite` needs no flag from there), TypeScript (strict, run by `tsx`, no build step), Fastify 5.
 - Tests: Vitest with `app.inject()`. Lint: ESLint 9 + typescript-eslint. Format: Prettier.
-- Storage is in memory for PA#2 (`src/store.ts`). A database arrives in PA#3.
+- Storage: PA#3 moves from the in-memory store (`src/store.ts`) to SQLite. The design is `docs/ARCHITECTURE.md`.
 
 ## Commands (the same ones CI runs)
 
@@ -39,8 +39,16 @@ review queue, then Publish. Read `docs/contract/` before touching an endpoint.
 - Never send student names, IDs or code comments to the model (brief §3).
 - Never add a way to publish while reviews are pending (brief §3, `docs/contract/publish-lab.md`).
 - Never run submitted code outside the sandbox (brief §5).
+- Never give the sandbox's `docker run` the Docker socket (`-v /var/run/docker.sock`),
+  `--privileged`, a host mount, `--env-file`, or the model key in `-e` (brief §5, PA#3 rubric).
+- Never write a memory-limit test that does not read back the memory it allocates. The
+  compiler removes an allocation that is never read, and the test then passes for nothing.
 - Never edit a test, the eval data, or a label to make a check pass. If a test is
   wrong, say why in the PR and fix it in a commit that touches no `src/` file.
+- Never edit `leetkob-eval/` (`eval.mjs`, `labels.jsonl`, the dev `.cpp` files). It is
+  byte for byte the published set, and a changed file scores 0 on the checker criterion.
+- Never name a dev-set problem or solution (such as `sort-merge/s05`) or quote dev-set
+  code in a prompt or a hard rule. Rules are generic: they read the constraint text.
 - Never pipe a check into `tail`/`head`/`grep`, and never add `|| true` or
   `continue-on-error`, in CI or when reporting a result. A pipe returns the last
   command's exit code, so the check can no longer fail.
