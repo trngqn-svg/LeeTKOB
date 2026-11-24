@@ -1,10 +1,14 @@
+import type { DatabaseSync } from "node:sqlite";
 import Fastify from "fastify";
 import { sendProblem } from "./problems.ts";
 import { registerHealth } from "./routes/health.ts";
+import { registerLogin } from "./routes/login.ts";
 import { registerPublish } from "./routes/publish.ts";
 import type { Store } from "./store.ts";
 
-export function buildApp(store: Store) {
+// shortcut: db is optional while Publish still runs on the in-memory store and its tests
+// build the app without one; it becomes required when Publish moves to the database (T8).
+export function buildApp(store: Store, db?: DatabaseSync) {
   const app = Fastify({ logger: false });
   // Only JSON bodies are accepted; without this, text/plain would be parsed as a string.
   app.removeContentTypeParser("text/plain");
@@ -42,6 +46,7 @@ export function buildApp(store: Store) {
   );
 
   registerHealth(app);
+  if (db) registerLogin(app, db, store.now);
   registerPublish(app, store);
   return app;
 }
