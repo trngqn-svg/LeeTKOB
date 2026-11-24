@@ -40,21 +40,25 @@ Each uncertain decision gets a short spike of two to three hours. A spike answer
 ## 5. The spikes
 
 Spike A, the parser. Question: how accurate is tree-sitter on the ban-list constraints?
+
 - Input: the 55 ban-list pairs of the dev set, with their known labels.
 - Measure: correct, wrong and unsure counts, and the time per file.
 - Done when: we have a number and a list of the wrong cases, and we know whether those cases are fixable or need another approach.
 
 Spike B, the sandbox. Question: how much harder can we make the worker's access without breaking judging?
+
 - Try: a socket proxy that allows only create, start, wait, logs and remove, then rootless Docker.
 - Measure: time per run, and whether the lecturer's walk-through still passes.
 - Done when: we choose a level, and the attacks we can think of (fork bomb, network access, large output, writing outside the work folder, reading the host) are listed with their result.
 
 Spike C, the model. Question: which model gives the best accuracy and cost on the semantic constraints?
+
 - Input: the dev set, two or three models, the same prompt and schema.
 - Measure: accuracy, `unsure` rate, cost and rate-limit errors.
 - Done when: we choose a model and record the numbers in decision 6.
 
 Spike D, the database. Question: does SQLite hold up under 80 simultaneous submissions?
+
 - Input: the real claim, heartbeat and finish statements, and 80 submissions at once.
 - Measure: lock waits, failed writes, and the time to the last verdict.
 - Done when: we keep SQLite or write the case for Postgres. This runs before PA#5, not before PA#3.
