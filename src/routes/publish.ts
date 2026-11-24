@@ -1,6 +1,7 @@
+import type { DatabaseSync } from "node:sqlite";
 import type { FastifyInstance } from "fastify";
+import { authenticate, isMember } from "../auth.ts";
 import { sendProblem } from "../problems.ts";
-import type { Lab, Store } from "../store.ts";
 
 const KEY_FORMAT = /^[A-Za-z0-9_-]{1,64}$/;
 const NOTE_MAX = 500;
@@ -39,21 +40,62 @@ export function validatePublishBody(body: unknown): FieldError[] {
   return errors;
 }
 
-const view = (lab: Lab) => ({
-  labId: lab.id,
+interface PublicationRow {
+  published_at: string;
+  published_by: string;
+  marks_published: number;
+  note: string | null;
+}
+
+const view = (labId: string, p: PublicationRow) => ({
+  labId,
   status: "published",
-  ...lab.publication,
+  publishedAt: p.published_at,
+  publishedBy: p.published_by,
+  marksPublished: p.marks_published,
+  note: p.note,
 });
 
-export function registerPublish(app: FastifyInstance, store: Store) {
+export function registerPublish(
+  app: FastifyInstance,
+  db: DatabaseSync,
+  now: () => Date,
+) {
+  const findLab = db.prepare(
+    "SELECT class_id, deadline FROM labs WHERE id = ?",
+  );
+  const findKey = db.prepare(
+    "SELECT body_hash, status, body FROM idempotency_keys WHERE user_id = ? AND lab_id = ? AND idem_key = ?",
+  );
+  const storeKey = db.prepare(
+    `INSERT INTO idempotency_keys (user_id, lab_id, idem_key, body_hash, status, body)
+     VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+  );
+  const findPublication = db.prepare(
+    "SELECT published_at, published_by, marks_published, note FROM publications WHERE lab_id = ?",
+  );
+  // What blocks Publish (ARCHITECTURE section 4.3): the same numbers as the review queue.
+  const blockers = db.prepare(`
+    SELECT
+      (SELECT COUNT(*) FROM review_items WHERE lab_id = ? AND status = 'pending') AS pending_reviews,
+      (SELECT COUNT(*) FROM submissions WHERE lab_id = ? AND status IN ('queued', 'running')) AS unjudged,
+      (SELECT COUNT(*) FROM submissions WHERE lab_id = ? AND status = 'failed') AS failed,
+      (SELECT COUNT(*) FROM submissions WHERE lab_id = ? AND status = 'judged') AS judged`);
+  const insertPublication = db.prepare(
+    "INSERT INTO publications (lab_id, published_at, published_by, marks_published, note) VALUES (?, ?, ?, ?, ?)",
+  );
+  const closeLab = db.prepare(
+    "UPDATE labs SET status = 'published' WHERE id = ?",
+  );
+
   app.post<{ Params: { labId: string } }>(
     "/labs/:labId/publish",
     (request, reply) => {
       const { labId } = request.params;
       const instance = `/labs/${labId}/publish`;
+      const at = now();
 
-      const token = request.headers.authorization?.match(/^Bearer (.+)$/)?.[1];
-      const user = token ? store.usersByToken.get(token) : undefined;
+      const user = authenticate(db, request.headers.authorization, at);
       if (!user) {
         return sendProblem(
           reply,
@@ -71,9 +113,10 @@ export function registerPublish(app: FastifyInstance, store: Store) {
         );
       }
 
-      const lab = store.labs.get(labId);
+      const lab = findLab.get(labId) as
+        { class_id: string; deadline: string | null } | undefined;
       // Same answer for "no such lab" and "not your class": ids of other classes must not leak.
-      if (!lab || !user.classIds.includes(lab.classId)) {
+      if (!lab || !isMember(db, user.id, lab.class_id)) {
         return sendProblem(
           reply,
           "lab-not-found",
@@ -103,12 +146,12 @@ export function registerPublish(app: FastifyInstance, store: Store) {
         );
       }
       const note = (request.body as { note?: string }).note ?? null;
-
-      const storeKey = JSON.stringify([user.id, lab.id, key]);
       const bodyHash = JSON.stringify({ confirm: true, note });
-      const stored = store.idempotency.get(storeKey);
+
+      const stored = findKey.get(user.id, labId, key) as
+        { body_hash: string; status: number; body: string } | undefined;
       if (stored) {
-        if (stored.bodyHash !== bodyHash) {
+        if (stored.body_hash !== bodyHash) {
           return sendProblem(
             reply,
             "idempotency-key-reused",
@@ -119,32 +162,87 @@ export function registerPublish(app: FastifyInstance, store: Store) {
         return reply
           .code(stored.status)
           .header("idempotent-replayed", "true")
+          .type("application/json")
           .send(stored.body);
       }
 
+      // The checks and the publication in one transaction: no submission can start or
+      // finish judging, and no review item can be decided, between them.
+      db.exec("BEGIN IMMEDIATE");
       let status = 200;
-      if (!lab.publication) {
-        if (lab.pendingReviews > 0) {
-          return sendProblem(
-            reply,
-            "reviews-pending",
-            instance,
-            `${lab.pendingReviews} reviews in this lab are still pending.`,
-            { pendingCount: lab.pendingReviews },
+      let body: ReturnType<typeof view>;
+      try {
+        const existing = findPublication.get(labId) as
+          PublicationRow | undefined;
+        if (existing) {
+          body = view(labId, existing);
+        } else {
+          if (
+            lab.deadline !== null &&
+            new Date(lab.deadline).getTime() >= at.getTime()
+          ) {
+            db.exec("ROLLBACK");
+            return sendProblem(
+              reply,
+              "deadline-not-passed",
+              instance,
+              "The lab's deadline has not passed yet (FAQ-12).",
+              { deadline: lab.deadline },
+            );
+          }
+          const n = blockers.get(labId, labId, labId, labId) as {
+            pending_reviews: number;
+            unjudged: number;
+            failed: number;
+            judged: number;
+          };
+          const pendingCount = n.pending_reviews + n.unjudged + n.failed;
+          if (pendingCount > 0) {
+            db.exec("ROLLBACK");
+            return sendProblem(
+              reply,
+              "reviews-pending",
+              instance,
+              `${n.pending_reviews} reviews are still pending, ${n.unjudged} submissions are still being judged and ${n.failed} failed to be judged.`,
+              {
+                pendingCount,
+                pendingReviews: n.pending_reviews,
+                unjudgedSubmissions: n.unjudged,
+                failedSubmissions: n.failed,
+              },
+            );
+          }
+          const publication: PublicationRow = {
+            published_at: at.toISOString(),
+            published_by: user.id,
+            marks_published: n.judged,
+            note,
+          };
+          insertPublication.run(
+            labId,
+            publication.published_at,
+            publication.published_by,
+            publication.marks_published,
+            publication.note,
           );
+          closeLab.run(labId);
+          body = view(labId, publication);
+          status = 201;
         }
-        // Synchronous check-then-set: one Node process cannot interleave two publishes here.
-        lab.publication = {
-          publishedAt: store.now().toISOString(),
-          publishedBy: user.id,
-          marksPublished: lab.judgedSubmissions,
-          note,
-        };
-        status = 201;
+        // Only 2xx answers are stored, so a refused request can be retried with its key.
+        storeKey.run(
+          user.id,
+          labId,
+          key,
+          bodyHash,
+          status,
+          JSON.stringify(body),
+        );
+        db.exec("COMMIT");
+      } catch (error) {
+        db.exec("ROLLBACK");
+        throw error;
       }
-
-      const body = view(lab);
-      store.idempotency.set(storeKey, { bodyHash, status, body });
       return reply.code(status).send(body);
     },
   );

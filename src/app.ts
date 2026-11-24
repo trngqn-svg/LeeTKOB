@@ -5,11 +5,13 @@ import { registerHealth } from "./routes/health.ts";
 import { registerLabs } from "./routes/labs.ts";
 import { registerLogin } from "./routes/login.ts";
 import { registerPublish } from "./routes/publish.ts";
+import { registerReview } from "./routes/review.ts";
 import { registerSubmissions } from "./routes/submissions.ts";
 import type { Store } from "./store.ts";
 
-// shortcut: db is optional while Publish still runs on the in-memory store and its tests
-// build the app without one; it becomes required when Publish moves to the database (T8).
+// shortcut: db is optional only because the /health test builds the app without one, and the
+// store only carries the clock; make db required and pass `now` alone in a commit that may
+// touch the tests' setup.
 export function buildApp(store: Store, db?: DatabaseSync) {
   const app = Fastify({ logger: false });
   // Only JSON bodies are accepted; without this, text/plain would be parsed as a string.
@@ -64,7 +66,8 @@ export function buildApp(store: Store, db?: DatabaseSync) {
     registerLogin(app, db, store.now);
     registerLabs(app, db, store.now);
     registerSubmissions(app, db, store.now);
+    registerReview(app, db, store.now);
+    registerPublish(app, db, store.now);
   }
-  registerPublish(app, store);
   return app;
 }

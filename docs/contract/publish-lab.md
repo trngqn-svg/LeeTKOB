@@ -5,11 +5,9 @@ appeal. It is the step in LeeTKOB that is hard to undo, so it is **safe to repea
 and it **refuses while any review is pending, while any submission is still being
 judged or failed to be judged, and before the lab's deadline if the lab has one**.
 
-Status: everything in this file except the rules added on 2026-11-24 (submissions still
-being judged, submissions whose judging failed, and the deadline) is implemented in
-[`src/routes/publish.ts`](../../src/routes/publish.ts) and held to this file by
-[`tests/contract/publish-lab.test.ts`](../../tests/contract/publish-lab.test.ts). The
-new rules are specified here first. The code and the tests follow in later commits.
+Status: everything in this file is implemented in
+[`src/routes/publish.ts`](../../src/routes/publish.ts) on the database (task T8) and held to
+this file by [`tests/contract/publish-lab.test.ts`](../../tests/contract/publish-lab.test.ts).
 
 ## Who may call it
 
