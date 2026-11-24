@@ -5,6 +5,7 @@ import { registerHealth } from "./routes/health.ts";
 import { registerLabs } from "./routes/labs.ts";
 import { registerLogin } from "./routes/login.ts";
 import { registerPublish } from "./routes/publish.ts";
+import { registerReview } from "./routes/review.ts";
 import { registerSubmissions } from "./routes/submissions.ts";
 import type { Store } from "./store.ts";
 
@@ -64,6 +65,7 @@ export function buildApp(store: Store, db?: DatabaseSync) {
     registerLogin(app, db, store.now);
     registerLabs(app, db, store.now);
     registerSubmissions(app, db, store.now);
+    registerReview(app, db, store.now);
   }
   registerPublish(app, store);
   return app;
