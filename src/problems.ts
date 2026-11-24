@@ -22,6 +22,10 @@ export const PROBLEMS = {
     title: "Idempotency-Key reused with a different body",
   },
   "reviews-pending": { status: 409, title: "Reviews are still pending" },
+  "deadline-not-passed": {
+    status: 409,
+    title: "The deadline has not passed yet",
+  },
   "lab-published": { status: 409, title: "The lab is already published" },
   "deadline-passed": { status: 409, title: "The deadline has passed" },
   "too-many-submissions": { status: 429, title: "Too many submissions" },
