@@ -1,7 +1,9 @@
 import type { FastifyReply } from "fastify";
 
-// RFC 9457 problem types; titles and statuses are fixed by docs/contract/publish-lab.md.
+// RFC 9457 problem types; titles and statuses are fixed by the contracts in
+// docs/contract/ (the list is in docs/ARCHITECTURE.md, section 6.5).
 export const PROBLEMS = {
+  "invalid-credentials": { status: 401, title: "Email or password is wrong" },
   "unsupported-media-type": { status: 415, title: "Unsupported media type" },
   "validation-failed": { status: 422, title: "Request body is invalid" },
   unauthenticated: { status: 401, title: "Authentication required" },

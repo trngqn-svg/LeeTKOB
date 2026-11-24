@@ -5,12 +5,12 @@ import type { Lab, Store } from "../store.ts";
 const KEY_FORMAT = /^[A-Za-z0-9_-]{1,64}$/;
 const NOTE_MAX = 500;
 
-interface FieldError {
+export interface FieldError {
   pointer: string;
   message: string;
 }
 
-const escapePointer = (key: string) =>
+export const escapePointer = (key: string) =>
   key.replace(/~/g, "~0").replace(/\//g, "~1");
 
 export function validatePublishBody(body: unknown): FieldError[] {
