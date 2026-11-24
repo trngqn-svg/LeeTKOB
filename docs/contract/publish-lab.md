@@ -2,10 +2,14 @@
 
 Publishes the marks of one lab. After this call students see their marks and may
 appeal. It is the step in LeeTKOB that is hard to undo, so it is **safe to repeat**
-and it **refuses while any review is pending**.
+and it **refuses while any review is pending, while any submission is still being
+judged, and before the lab's deadline if the lab has one**.
 
-Status: implemented in [`src/routes/publish.ts`](../../src/routes/publish.ts), held to
-this file by [`tests/contract/publish-lab.test.ts`](../../tests/contract/publish-lab.test.ts).
+Status: everything in this file except the two rules added on 2026-11-24 (submissions
+still being judged, and the deadline) is implemented in
+[`src/routes/publish.ts`](../../src/routes/publish.ts) and held to this file by
+[`tests/contract/publish-lab.test.ts`](../../tests/contract/publish-lab.test.ts). The two
+new rules are specified here first. The code and the tests follow in later commits.
 
 ## Who may call it
 
@@ -91,11 +95,35 @@ Publishing is idempotent. There are three cases.
 
 Keys are scoped to **(caller, lab)**. Only successful (2xx) responses are stored. An
 error is not stored, so a client may retry with the same key after fixing the cause
-(for example, after the pending reviews are finished). Stored keys are kept for at
-least 24 hours.
+(for example, after the pending reviews are decided and the waiting submissions are
+judged). Stored keys are kept for at least 24 hours.
 
 Two concurrent requests for the same lab produce exactly one publication. One gets
 `201`, the other `200` (or a replay).
+
+## What blocks publishing
+
+A lab can be published only when all of these hold:
+
+- If the lab has a deadline, the deadline has passed. A lab without a deadline skips this
+  check. The deadline is set when the lab is created and is not part of this contract.
+  Otherwise: `deadline-not-passed`.
+- Every review item of the lab has a decision. Otherwise: `reviews-pending`.
+- No submission of the lab is `queued` or `running`. Otherwise: `reviews-pending`. A
+  submission that is still waiting has no review item yet, so counting only the items
+  would let a lab be published while a submission has not even been judged.
+
+The deadline rule follows the product owners' FAQ-12 in part: a lab without a deadline
+skips it, because the lecturer's walk-through creates a lab with only a statement, tests
+and constraints. The rule about submissions still being judged is the team's own
+addition.
+
+The checks and the publication happen in one transaction, so a submission cannot start
+or finish judging between them. A submission that finishes judging after the lab is
+published writes nothing (see "What happens when it succeeds").
+
+How a submission whose judging failed (status `failed`, a failure of the system) affects
+publishing is not decided yet. It is not counted here.
 
 ## Errors
 
@@ -106,9 +134,11 @@ Every error is `application/problem+json` (RFC 9457):
   "type": "https://leetkob.example/problems/reviews-pending",
   "title": "Reviews are still pending",
   "status": 409,
-  "detail": "3 reviews in this lab are still pending.",
+  "detail": "2 reviews are still pending and 1 submission is still being judged.",
   "instance": "/labs/lab-sort/publish",
-  "pendingCount": 3
+  "pendingCount": 3,
+  "pendingReviews": 2,
+  "unjudgedSubmissions": 1
 }
 ```
 
@@ -116,17 +146,18 @@ Every error is `application/problem+json` (RFC 9457):
 `type`. `detail` is for humans and may change, so clients must branch on `type`, not
 on `detail`. Every `type` below is `https://leetkob.example/problems/<slug>`.
 
-| Slug                      | Status | `title`                                      | When                                                                | Extra members                                                                    |
-| ------------------------- | ------ | -------------------------------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `unsupported-media-type`  | 415    | Unsupported media type                       | A body is sent with a `Content-Type` other than `application/json`. | none                                                                             |
-| `validation-failed`       | 422    | Request body is invalid                      | No body, body is not valid JSON, or it breaks the body rules.       | `errors`: array of `{ "pointer": "/confirm", "message": "..." }` (JSON Pointer). |
-| `unauthenticated`         | 401    | Authentication required                      | No `Authorization: Bearer` header, or the token is unknown.         | none                                                                             |
-| `forbidden-role`          | 403    | Only TAs may publish marks                   | Caller is not a TA.                                                 | none                                                                             |
-| `lab-not-found`           | 404    | Lab not found                                | No such lab, **or** the TA is not assigned to the lab's class.      | none                                                                             |
-| `invalid-idempotency-key` | 400    | Idempotency-Key is missing or invalid        | `Idempotency-Key` missing or not matching the format.               | none                                                                             |
-| `idempotency-key-reused`  | 422    | Idempotency-Key reused with a different body | Key already used by this caller on this lab with a different body.  | none                                                                             |
-| `reviews-pending`         | 409    | Reviews are still pending                    | At least one item in the lab's review queue is not reviewed yet.    | `pendingCount`: integer ≥ 1.                                                     |
-| `internal`                | 500    | Internal server error                        | Unexpected server error. Safe to retry with the same key.           | none                                                                             |
+| Slug                      | Status | `title`                                      | When                                                                                                                     | Extra members                                                                                                                                                                                                  |
+| ------------------------- | ------ | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `unsupported-media-type`  | 415    | Unsupported media type                       | A body is sent with a `Content-Type` other than `application/json`.                                                      | none                                                                                                                                                                                                           |
+| `validation-failed`       | 422    | Request body is invalid                      | No body, body is not valid JSON, or it breaks the body rules.                                                            | `errors`: array of `{ "pointer": "/confirm", "message": "..." }` (JSON Pointer).                                                                                                                               |
+| `unauthenticated`         | 401    | Authentication required                      | No `Authorization: Bearer` header, or the token is unknown.                                                              | none                                                                                                                                                                                                           |
+| `forbidden-role`          | 403    | Only TAs may publish marks                   | Caller is not a TA.                                                                                                      | none                                                                                                                                                                                                           |
+| `lab-not-found`           | 404    | Lab not found                                | No such lab, **or** the TA is not assigned to the lab's class.                                                           | none                                                                                                                                                                                                           |
+| `invalid-idempotency-key` | 400    | Idempotency-Key is missing or invalid        | `Idempotency-Key` missing or not matching the format.                                                                    | none                                                                                                                                                                                                           |
+| `idempotency-key-reused`  | 422    | Idempotency-Key reused with a different body | Key already used by this caller on this lab with a different body.                                                       | none                                                                                                                                                                                                           |
+| `deadline-not-passed`     | 409    | The deadline has not passed yet              | The lab has a deadline and it is still in the future.                                                                    | `deadline`: the lab's deadline, ISO 8601.                                                                                                                                                                      |
+| `reviews-pending`         | 409    | Reviews are still pending                    | At least one review item of the lab has no decision yet, or at least one submission of the lab is `queued` or `running`. | `pendingCount`: integer ≥ 1, the sum of the two numbers below. `pendingReviews`: integer ≥ 0, review items without a decision. `unjudgedSubmissions`: integer ≥ 0, submissions that are `queued` or `running`. |
+| `internal`                | 500    | Internal server error                        | Unexpected server error. Safe to retry with the same key.                                                                | none                                                                                                                                                                                                           |
 
 For `lab-not-found`, `detail` is the same for both causes, so the two responses differ
 only in `instance`.
@@ -143,8 +174,9 @@ When several errors apply, the first one in this order wins:
 6. `validation-failed` (body rules)
 7. `idempotency-key-reused`, then replay of a stored response
 8. Already published → `200`
-9. `reviews-pending`
-10. Publish → `201`
+9. `deadline-not-passed`
+10. `reviews-pending` (a review item without a decision, or a submission that is `queued` or `running`)
+11. Publish → `201`
 
 ## What happens when it succeeds (201 only)
 
@@ -152,11 +184,15 @@ When several errors apply, the first one in this order wins:
   Reopening marks belongs to appeals.
 - The marks of every judged submission in the lab become visible to their students.
 - Verdicts in the review queue become read-only. Later changes go through appeals.
+- The lab accepts no more submissions. A submission to a published lab is refused (the
+  contract of the submissions endpoint names the error).
+- The judging worker writes nothing into the lab any more.
 - Appeals (`POST /submissions/{id}/appeals`) are accepted for this lab from `publishedAt` on.
 
 `200`, a replay and every error change nothing.
 
 ## Not in this contract
 
-Login and token issuing, how reviews are done, the appeals endpoint, and notifications
-to students.
+Login and token issuing, how reviews are done, the appeals endpoint, notifications to
+students, how a `failed` submission affects publishing, manual score changes after
+publication (they need a reason), and what a student sees after publishing.
