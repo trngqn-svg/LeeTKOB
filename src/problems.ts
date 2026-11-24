@@ -4,6 +4,10 @@ import type { FastifyReply } from "fastify";
 // docs/contract/ (the list is in docs/ARCHITECTURE.md, section 6.5).
 export const PROBLEMS = {
   "invalid-credentials": { status: 401, title: "Email or password is wrong" },
+  "role-not-allowed": { status: 403, title: "Your role may not do this" },
+  "class-not-found": { status: 404, title: "Class not found" },
+  "payload-too-large": { status: 413, title: "Request body is too large" },
+  "invalid-query": { status: 400, title: "Query parameter is invalid" },
   "unsupported-media-type": { status: 415, title: "Unsupported media type" },
   "validation-failed": { status: 422, title: "Request body is invalid" },
   unauthenticated: { status: 401, title: "Authentication required" },
