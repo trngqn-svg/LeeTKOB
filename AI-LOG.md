@@ -216,3 +216,12 @@ Kept: `src/db/connection.ts` (the three pragmas of ARCHITECTURE section 3), `src
 Changed: the first test of the pragmas failed because `PRAGMA busy_timeout` answers a column named `timeout`, not `busy_timeout`. The test helper was wrong, not the connection, so the helper now reads the first column.
 Rejected: putting the accounts in a migration (every test database would hold the public accounts, and a new password would need a new migration); a password written in the code with no way to change it (the development default only applies when `SEED_PASSWORD` is unset, and the command says so). Also caught in this session: the assistant piped `npm test` into `tail` once, which `AGENTS.md` forbids; it ran the tests again without the pipe to report the real exit code.
 By hand: 23120343 chose `SEED_PASSWORD` and the `data/` folder. Checked on Node 22.17 with SQLite 3.50: `node:sqlite` needs no flag.
+
+## 2026-11-24 — login, the bearer token and the class rule (T4)
+
+Tool: Claude Code (Opus 5.5).
+Asked for: 23120343 asked for task T4, and whether to write the tests, commit them, and only then write the code without touching the tests.
+Kept: two pairs of commits, each a red test commit followed by a code commit that changes no test file. `tests/contract/auth-login.test.ts` (27 cases copied from `auth-login.md`) and then `src/routes/login.ts`; `tests/unit/auth.test.ts` and then `src/auth.ts` with `authenticate` and `isMember`, which T5 to T8 reuse. The token is 32 random bytes and only its SHA-256 is stored; an unknown email checks a dummy hash, so it answers in about the same time as a wrong password. `invalid-credentials` is added to `src/problems.ts`.
+Changed: `buildApp` takes the database as an optional second argument, with a `shortcut:` comment. Making it required would have meant editing the setup of `tests/contract/publish-lab.test.ts` in a code commit, which the rubric (criterion 7) reads as a loosened test. 23120343 agreed to keep Publish on its demo tokens until T8.
+Rejected: a Fastify JSON schema for the login body (`AGENTS.md` forbids it on a contracted route); copying the JSON Pointer helper from the Publish route (it is exported and reused instead).
+By hand: the endpoint was tested through `app.inject()` only. Nobody has called the running server with curl yet. The isolation contract tests ("a TA of another class gets 404") come with T5, when labs exist.
