@@ -5,6 +5,7 @@ import { registerHealth } from "./routes/health.ts";
 import { registerLabs } from "./routes/labs.ts";
 import { registerLogin } from "./routes/login.ts";
 import { registerPublish } from "./routes/publish.ts";
+import { registerSubmissions } from "./routes/submissions.ts";
 import type { Store } from "./store.ts";
 
 // shortcut: db is optional while Publish still runs on the in-memory store and its tests
@@ -62,6 +63,7 @@ export function buildApp(store: Store, db?: DatabaseSync) {
   if (db) {
     registerLogin(app, db, store.now);
     registerLabs(app, db, store.now);
+    registerSubmissions(app, db, store.now);
   }
   registerPublish(app, store);
   return app;
