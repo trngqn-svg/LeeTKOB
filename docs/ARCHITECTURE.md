@@ -4,7 +4,7 @@ This document describes how LeeTKOB is built: the processes, the SQLite schema, 
 
 Where this document and a file in `docs/contract/` disagree, the contract wins. The rule in `AGENTS.md` is that behaviour is defined contract-first, in its own commit, before the code and the tests. Every endpoint below that is not built needs its own contract file before it is implemented.
 
-Related files: the pictures of the system (C4 levels 1 and 2) are in `docs/c4/`, the publish contract is `docs/contract/publish-lab.md`, and what the coding assistant may do is in `docs/PERMISSIONS.md`.
+Related files: the reasons and trade-offs behind the choices are in `docs/DECISIONS.md`, the pictures of the system (C4 levels 1 and 2) are in `docs/c4/`, the publish contract is `docs/contract/publish-lab.md`, and what the coding assistant may do is in `docs/PERMISSIONS.md`.
 
 ## 1. Principles
 
