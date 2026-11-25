@@ -363,6 +363,9 @@ stateDiagram-v2
     running --> judged: guarded finish
     running --> queued: lease expired, attempts left
     running --> failed: lease expired, no attempts left
+    running --> queued: sandbox unavailable, attempt not counted
+    running --> queued: other system error, attempts left
+    running --> failed: other system error, no attempts left
     judged --> [*]
     failed --> [*]
 ```
@@ -386,6 +389,9 @@ Transitions:
 | `running` | `judged`  | The pipeline finished.                        | `locked_by` is this worker and `status` is `running`. | `judge_result` set. Verdicts and review items written in the same transaction. |
 | `running` | `queued`  | A claim step finds `lease_until` in the past. | `attempts` is below `MAX_ATTEMPTS`.                   | `locked_by` and `lease_until` cleared.                                         |
 | `running` | `failed`  | A claim step finds `lease_until` in the past. | `attempts` is at `MAX_ATTEMPTS` or more.              | `finished_at` set. `locked_by` and `lease_until` cleared.                      |
+| `running` | `queued`  | The sandbox is unavailable (it threw).        | `locked_by` is this worker and `status` is `running`. | `attempts` - 1: the try is not counted. Lock cleared.                          |
+| `running` | `queued`  | Another error that is not the student's.      | As above, and `attempts` is below `MAX_ATTEMPTS`.     | `locked_by` and `lease_until` cleared.                                         |
+| `running` | `failed`  | Another error that is not the student's.      | As above, and `attempts` is at `MAX_ATTEMPTS`.        | `finished_at` set. `locked_by` and `lease_until` cleared.                      |
 
 ### 4.1 The statements
 
@@ -447,7 +453,17 @@ ON CONFLICT (verdict_id) DO NOTHING;
 COMMIT;
 ```
 
-A worker that catches an error that is not the student's (Docker is down, the sandbox image is missing, an exception in the pipeline) does not wait for the lease to run out. It releases the job at once:
+A worker that catches an error that is not the student's does not wait for the lease to run out. It gives the job back at once, in one of two ways.
+
+When the sandbox itself throws (Docker is down, the sandbox image is missing), the job goes back without counting the attempt. By the sandbox's contract (`RunInSandbox` in `src/judge/types.ts`) a throw is always a failure of the system, never something the student's code did, so the submission must not use up its attempts while Docker is down:
+
+```sql
+UPDATE submissions
+   SET status = 'queued', attempts = attempts - 1, locked_by = NULL, lease_until = NULL
+ WHERE id = :id AND status = 'running' AND locked_by = :worker;
+```
+
+Any other error (an exception in the pipeline, a constraint the database does not know) counts the attempt, so a job that always breaks the pipeline ends as `failed` instead of blocking the queue:
 
 ```sql
 UPDATE submissions
@@ -457,13 +473,18 @@ UPDATE submissions
  WHERE id = :id AND status = 'running' AND locked_by = :worker;
 ```
 
+After either one, the worker waits before it claims again: the poll interval after the first failure, then twice as long after each failure in a row, up to `maxBackoffMs` (60 s by default). A judged job resets the wait. Without this wait the worker would claim the same job again within milliseconds.
+
 ### 4.2 Rules and crash cases
 
 - **Exactly once.** Two things protect the verdicts. The guarded `UPDATE` lets only the worker that holds the lease finish, and the unique key on `(submission_id, constraint_id)` refuses a second verdict. So even if a job is judged twice, one set of verdicts is stored.
 - **Stop the worker, submit, start the worker.** The submission stays `queued`. The first claim after the restart takes it, and it is judged once.
 - **A worker dies in the middle.** Its lease runs out. The next claim step puts the job back to `queued` (attempt 2), and another claim takes it. The dead worker's late write, if it ever comes, is refused by the guard.
 - **A job that always crashes the worker.** After `MAX_ATTEMPTS` claims with a lease that ran out, it becomes `failed`. It is not retried forever, and the student sees that the system failed, not that the code was wrong. A `failed` submission blocks Publish (section 4.3). Until a requeue endpoint exists, an operator puts it back by hand on the VM (`status = 'queued'`, `attempts = 0`).
-- **An error that is not the student's.** The worker releases the job at once with the last statement above: back to `queued` while attempts are left, then `failed`. A Docker outage does not have to wait for three leases to run out.
+- **An error that is not the student's.** The worker gives the job back at once with one of the two statements above, then waits longer after each failure in a row.
+- **Docker is down for a while.** Every claim ends with the sandbox throwing, so the job goes back without counting, and the worker waits up to `maxBackoffMs` between tries. No submission becomes `failed`, and when Docker is back the queue is judged in order. Before 2026-11-25 every throw counted, so a 10-second restart of Docker turned the whole queue into `failed`: the worker took the same job three times within milliseconds, then the next one.
+- **The cost of not counting.** If the sandbox throws for one submission only (a bug in the sandbox, not an outage), that submission is tried again forever, with the wait, and holds up the queue behind it. The worker logs every try. The sandbox must turn anything the student's code does into an outcome, never a throw (section 5).
+- **Stopping while it waits.** `stop()` ends the wait at once, so `docker stop` does not have to wait for the longest pause.
 - **Lease length.** The lease is longer than any single step (the compile limit, one test limit, one model timeout), and the worker extends it with a heartbeat while it works.
 - **Review items and labs have their own small states.** A review item goes from `pending` to `reviewed`, once, by a TA. A lab goes from `open` to `published`, once, by Publish.
 - **Publish reads the queue and the submissions.** See 4.3. It replaces the plain number `pendingReviews` of the in-memory store.
