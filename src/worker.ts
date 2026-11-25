@@ -36,11 +36,7 @@ export interface WorkerDeps {
 }
 
 export type WorkResult =
-  | "idle"
-  | "judged"
-  | "released"
-  | "unavailable"
-  | "lost";
+  "idle" | "judged" | "released" | "unavailable" | "lost";
 
 /** The sandbox threw: by its contract, a failure of the system, never of the student. */
 class SandboxUnavailable extends Error {}

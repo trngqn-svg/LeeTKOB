@@ -299,10 +299,8 @@ describe("workOnce", () => {
   });
 
   it("fails no submission during a sandbox outage, and judges each once when it is back", async () => {
-    const first = await submit("int main() { return 1; }
-");
-    const second = await submit("int main() { return 2; }
-");
+    const first = await submit("int main() { return 1; }\n");
+    const second = await submit("int main() { return 2; }\n");
     let down = true;
     const d = deps({
       runInSandbox: async () => {
