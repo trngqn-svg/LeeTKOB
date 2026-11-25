@@ -18,6 +18,69 @@ npm ci
 cp .env.example .env   # fill in values; .env is git-ignored
 ```
 
+## Folder structure
+
+What each folder and file is for. Whoever adds, moves or deletes a file updates this tree in the same commit (`AGENTS.md`, "Conventions").
+
+```text
+LeeTKOB/
+├── .github/workflows/ci.yml   # CI: lint, format, typecheck, tests and the gitleaks scan
+├── .claude/settings.json      # What Claude Code may run, must ask for, or never does here
+├── .env.example               # Every environment variable, without values
+├── .gitattributes             # LF line endings for every text file; PNGs are binary
+├── .gitignore                 # Files git never tracks (.env, data/, node_modules/)
+├── .prettierignore            # Files Prettier skips (leetkob-eval/, package-lock.json)
+├── AGENTS.md                  # Rules for coding assistants (CLAUDE.md imports it)
+├── AI-LOG.md                  # Every use of an AI tool: asked, kept, changed, rejected
+├── CLAUDE.md                  # Imports AGENTS.md for Claude Code
+├── PA2.md                     # What was handed in for PA#2
+├── SELF_ASSESSMENT_REPORT.md  # The team's self-assessment of PA#2
+├── eslint.config.js           # ESLint 9 and typescript-eslint settings
+├── package.json               # Scripts and dependencies (package-lock.json pins them)
+├── tsconfig.json              # TypeScript strict settings for src/ and tests/
+├── docs/
+│   ├── ARCHITECTURE.md        # The design: schema, queue state machine, pipeline, endpoints
+│   ├── DECISIONS.md           # Each architecture decision, why, and its trade-offs
+│   ├── DEPLOYMENT.md          # The Azure VM and how the app is deployed on it
+│   ├── PERMISSIONS.md         # What the assistant may do without asking
+│   ├── RECONSIDERATION.md     # The decisions reviewed again, with the planned spikes
+│   ├── TASKS.md               # Who does what for PA#3, and the timeline
+│   ├── c4/                    # C4 diagrams: system context (C1) and containers (C2)
+│   ├── contract/              # One file per endpoint: the behaviour the tests copy
+│   └── pa2/                   # Screenshots of the branch protection for PA#2
+├── leetkob-eval/              # The lecturer's dev set and eval.mjs. Never edit it
+├── src/
+│   ├── server.ts              # Starts the API: opens the database, listens on PORT
+│   ├── app.ts                 # Builds the Fastify app: error handler and routes
+│   ├── auth.ts                # Reads the Bearer token; checks class membership
+│   ├── password.ts            # scrypt hashing and checking of passwords
+│   ├── problems.ts            # Every RFC 9457 problem type, and sendProblem
+│   ├── store.ts               # The PA#2 in-memory store; now it only carries the clock
+│   ├── worker.ts              # The judge worker loop: claim, sandbox, pipeline, finish
+│   ├── worker-config.ts       # Reads and checks the worker's environment variables
+│   ├── worker-main.ts         # npm run worker: the worker process
+│   ├── db/
+│   │   ├── connection.ts      # Opens SQLite with the three pragmas
+│   │   ├── migrate.ts         # Applies the pending migrations in order
+│   │   ├── migrations/        # One .sql file per schema change (001 is the whole schema)
+│   │   ├── cli.ts             # npm run db:migrate and npm run db:seed
+│   │   ├── seed.ts            # The test accounts and classes
+│   │   └── queue.ts           # The queue statements: claim, heartbeat, release, finish
+│   ├── judge/
+│   │   ├── types.ts           # Shared types: constraint, verdict, model client, sandbox
+│   │   └── constraints.ts     # Reads a constraint's text: ban list or semantic
+│   └── routes/                # One file per group of endpoints
+│       ├── health.ts          # GET /health
+│       ├── login.ts           # POST /auth/login
+│       ├── labs.ts            # POST /classes/{classId}/labs and GET /labs/{labId}
+│       ├── submissions.ts     # Submit, and GET /submissions/{submissionId}
+│       ├── review.ts          # The review queue and the TA's decision
+│       └── publish.ts         # POST /labs/{labId}/publish
+└── tests/
+    ├── contract/              # One test file per contract, values copied from docs/contract/
+    └── unit/                  # Unit tests, one file per module of src/
+```
+
 ## Checks
 
 The same four commands run locally and in CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).

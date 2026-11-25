@@ -28,6 +28,7 @@ review queue, then Publish. Read `docs/contract/` before touching an endpoint.
   behaviour, change the contract first, in its own commit, then the code and the tests.
 - Contract tests copy expected statuses and titles from the contract. Never import them from `src/`.
 - Work on a branch and open a PR. `main` is protected.
+- When you create a file, add it to the tree in `README.md`, section "Folder structure", in the same commit, with one line on what it is for. Do the same when you move, rename or delete a file. A new file inside a folder the tree lists only as a folder (such as `docs/contract/`) needs no line of its own, unless its purpose differs from the folder's.
 
 ## Never
 
