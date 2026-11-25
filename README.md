@@ -38,6 +38,8 @@ LeeTKOB/
 ├── eslint.config.js           # ESLint 9 and typescript-eslint settings
 ├── package.json               # Scripts and dependencies (package-lock.json pins them)
 ├── tsconfig.json              # TypeScript strict settings for src/ and tests/
+├── docker/
+│   └── sandbox/Dockerfile     # The sandbox image: g++ and the non-root user 10001, nothing else
 ├── docs/
 │   ├── ARCHITECTURE.md        # The design: schema, queue state machine, pipeline, endpoints
 │   ├── DECISIONS.md           # Each architecture decision, why, and its trade-offs
@@ -68,6 +70,7 @@ LeeTKOB/
 │   │   └── queue.ts           # The queue statements: claim, heartbeat, release, finish
 │   ├── judge/
 │   │   ├── types.ts           # Shared types: constraint, verdict, model client, sandbox
+│   │   ├── sandbox.ts         # Compiles and runs a submission in Docker, with the nine minimums
 │   │   └── constraints.ts     # Reads a constraint's text: ban list or semantic
 │   └── routes/                # One file per group of endpoints
 │       ├── health.ts          # GET /health
