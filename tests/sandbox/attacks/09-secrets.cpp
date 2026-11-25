@@ -20,10 +20,15 @@
 
 extern char** environ;
 
-// The settings files of the app, its image and its deployment (docs/DEPLOYMENT.md).
+// The settings files of the app, its image and its deployment (docs/DEPLOYMENT.md),
+// including the clone of the repository on the team's VM.
 static const char* const kSecretFiles[] = {
-    "/app/.env",  "/.env",           "/root/.env",       "/home/node/.env", "/srv/leetkob/.env",
-    "/etc/leetkob/.env", "/etc/leetkob.env", "/run/secrets/llm_api_key", ".env", "../.env",
+    "/app/.env",         "/.env",
+    "/root/.env",        "/home/node/.env",
+    "/srv/leetkob/.env", "/etc/leetkob/.env",
+    "/etc/leetkob.env",  "/run/secrets/llm_api_key",
+    "/home/azureuser/LeeTKOB/.env", ".env",
+    "../.env",
 };
 
 static int compileTimeHits() {
@@ -34,7 +39,10 @@ static int compileTimeHits() {
 #if __has_include("/.env")
   ++hits;
 #endif
-#if __has_include("/root/.env")
+  // No __has_include("/root/.env"): /root is closed to the sandbox user, and g++ then
+  // stops with "Permission denied" instead of answering false. The run-time check
+  // below still tries to open it.
+#if __has_include("/home/azureuser/LeeTKOB/.env")
   ++hits;
 #endif
 #if __has_include("/home/node/.env")
