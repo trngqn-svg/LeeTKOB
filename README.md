@@ -98,6 +98,8 @@ All four must be green to merge into `main`.
 
 CI also scans the full git history for secrets with gitleaks.
 
+The job `sandbox` builds the sandbox image from `docker/sandbox/` and runs `npm run test:sandbox` with `SANDBOX_TESTS=1`: each of the nine attack submissions in `tests/sandbox/attacks/` goes through the real sandbox and must fail the way it should. It needs Docker, so `npm test` skips these tests. To run them yourself, build the image with `docker build --tag leetkob-sandbox:ci docker/sandbox`, then run `npm run test:sandbox` with `SANDBOX_TESTS=1` and `SANDBOX_IMAGE=leetkob-sandbox:ci` set.
+
 ## Try the endpoint
 
 ```sh

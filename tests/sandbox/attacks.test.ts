@@ -7,7 +7,8 @@
 // passed. With it, a missing Docker fails them.
 //
 // What these tests ask of the sandbox, besides RunInSandbox in src/judge/types.ts:
-// - the module exports `runInSandbox`;
+// - the module exports `runInSandbox`, and runs the image named by SANDBOX_IMAGE,
+//   built from docker/sandbox/ (the CI job "sandbox" builds it first);
 // - every container it starts carries the label "leetkob.sandbox", so the tests can
 //   check that none is left after a run.
 import { execFileSync } from "node:child_process";
