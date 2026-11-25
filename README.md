@@ -78,6 +78,7 @@ LeeTKOB/
 │       └── publish.ts         # POST /labs/{labId}/publish
 └── tests/
     ├── contract/              # One test file per contract, values copied from docs/contract/
+    ├── sandbox/attacks/       # The nine attack submissions, one per sandbox minimum (brief section 5)
     └── unit/                  # Unit tests, one file per module of src/
 ```
 
