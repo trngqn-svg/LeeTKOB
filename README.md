@@ -38,6 +38,8 @@ LeeTKOB/
 ├── eslint.config.js           # ESLint 9 and typescript-eslint settings
 ├── package.json               # Scripts and dependencies (package-lock.json pins them)
 ├── tsconfig.json              # TypeScript strict settings for src/ and tests/
+├── docker/
+│   └── sandbox/Dockerfile     # The sandbox image: g++ and the non-root user 10001, nothing else
 ├── docs/
 │   ├── ARCHITECTURE.md        # The design: schema, queue state machine, pipeline, endpoints
 │   ├── DECISIONS.md           # Each architecture decision, why, and its trade-offs
@@ -68,6 +70,7 @@ LeeTKOB/
 │   │   └── queue.ts           # The queue statements: claim, heartbeat, release, finish
 │   ├── judge/
 │   │   ├── types.ts           # Shared types: constraint, verdict, model client, sandbox
+│   │   ├── sandbox.ts         # Compiles and runs a submission in Docker, with the nine minimums
 │   │   └── constraints.ts     # Reads a constraint's text: ban list or semantic
 │   └── routes/                # One file per group of endpoints
 │       ├── health.ts          # GET /health
@@ -78,6 +81,9 @@ LeeTKOB/
 │       └── publish.ts         # POST /labs/{labId}/publish
 └── tests/
     ├── contract/              # One test file per contract, values copied from docs/contract/
+    ├── sandbox/               # The sandbox tests; they run only with SANDBOX_TESTS=1 and Docker
+    │   ├── attacks.test.ts    # Runs each attack through the real sandbox and checks the result
+    │   └── attacks/           # The nine attack submissions, one per sandbox minimum (brief section 5)
     └── unit/                  # Unit tests, one file per module of src/
 ```
 
@@ -94,6 +100,8 @@ All four must be green to merge into `main`.
 | Tests        | `npm test`             | Vitest (includes contract tests)     |
 
 CI also scans the full git history for secrets with gitleaks.
+
+The job `sandbox` builds the sandbox image from `docker/sandbox/` and runs `npm run test:sandbox` with `SANDBOX_TESTS=1`: each of the nine attack submissions in `tests/sandbox/attacks/` goes through the real sandbox and must fail the way it should. It needs Docker, so `npm test` skips these tests. To run them yourself, build the image with `docker build --tag leetkob-sandbox:ci docker/sandbox`, then run `npm run test:sandbox` with `SANDBOX_TESTS=1` and `SANDBOX_IMAGE=leetkob-sandbox:ci` set.
 
 ## Try the endpoint
 

@@ -29,6 +29,27 @@ jobs:
       - run: npm ci
       - run: npm run ${{ matrix.check }}
 
+  # The nine sandbox minimums (brief section 5, PA#3 rubric criterion 2): each attack in
+  # tests/sandbox/attacks/ runs through the real sandbox, on every pull request and on
+  # the pa3 tag. The image is built from docker/sandbox/ alone, so nothing else of the
+  # repository (and never a .env) can be inside it.
+  sandbox:
+    name: sandbox (nine attacks, Docker)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SANDBOX_TESTS: "1"
+      SANDBOX_IMAGE: leetkob-sandbox:ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: docker build --tag "$SANDBOX_IMAGE" docker/sandbox
+      - run: npm run test:sandbox
+
   secrets:
     name: secrets (gitleaks, full history)
     runs-on: ubuntu-latest
