@@ -6,6 +6,7 @@ import {
   claimNext,
   finishJob,
   heartbeat,
+  putBack,
   release,
   type QueueOptions,
 } from "./db/queue.ts";
@@ -14,6 +15,7 @@ import type {
   ConstraintKind,
   ConstraintResult,
   RunInSandbox,
+  SandboxOutcome,
   TestCase,
 } from "./judge/types.ts";
 
@@ -33,7 +35,15 @@ export interface WorkerDeps {
   samplePass: () => boolean;
 }
 
-export type WorkResult = "idle" | "judged" | "released" | "lost";
+export type WorkResult =
+  | "idle"
+  | "judged"
+  | "released"
+  | "unavailable"
+  | "lost";
+
+/** The sandbox threw: by its contract, a failure of the system, never of the student. */
+class SandboxUnavailable extends Error {}
 
 /** Takes at most one job and carries it to the end. */
 export async function workOnce(deps: WorkerDeps): Promise<WorkResult> {
@@ -48,10 +58,17 @@ export async function workOnce(deps: WorkerDeps): Promise<WorkResult> {
   const timer = setInterval(beat, (queue.leaseSeconds * 1000) / 4);
   try {
     const lab = loadLab(db, job.labId);
-    const outcome = await deps.runInSandbox(job.sourceCode, lab.tests, {
-      timeLimitMs: lab.timeLimitMs,
-      memoryLimitMb: lab.memoryLimitMb,
-    });
+    let outcome: SandboxOutcome;
+    try {
+      outcome = await deps.runInSandbox(job.sourceCode, lab.tests, {
+        timeLimitMs: lab.timeLimitMs,
+        memoryLimitMb: lab.memoryLimitMb,
+      });
+    } catch (error) {
+      throw new SandboxUnavailable("The sandbox is unavailable.", {
+        cause: error,
+      });
+    }
     beat();
     // Another worker owns the job now: do not spend a model call on it.
     if (lost) return "lost";
@@ -72,7 +89,16 @@ export async function workOnce(deps: WorkerDeps): Promise<WorkResult> {
     });
     return done ? "judged" : "lost";
   } catch (error) {
-    // Not the student's fault (Docker down, a bug in the pipeline): give the job back now.
+    if (error instanceof SandboxUnavailable) {
+      // Docker down or the image missing: give the job back without counting the attempt.
+      console.error(
+        `worker ${queue.workerId}: job ${job.id} put back, sandbox unavailable:`,
+        error.cause,
+      );
+      putBack(db, queue, job.id);
+      return "unavailable";
+    }
+    // Not the student's fault (a bug in the pipeline): give the job back now, counted.
     console.error(`worker ${queue.workerId}: job ${job.id} released:`, error);
     release(db, queue, job.id, now());
     return "released";
@@ -81,29 +107,67 @@ export async function workOnce(deps: WorkerDeps): Promise<WorkResult> {
   }
 }
 
-/** Runs workOnce until stop(), waiting pollMs when the queue is empty. */
+export interface WorkerLoopOptions {
+  /** The wait when the queue is empty, and the first wait after a failure. */
+  pollMs: number;
+  /** The longest wait after failures in a row. Default 60 s. */
+  maxBackoffMs?: number;
+}
+
+/**
+ * Runs workOnce until stop(). It waits pollMs when the queue is empty. After a failure it
+ * waits pollMs, then twice as long after each failure in a row, up to maxBackoffMs, so a
+ * Docker outage is not hammered (ARCHITECTURE section 4.1). stop() ends any wait at once.
+ */
 export function startWorker(
   deps: WorkerDeps,
-  { pollMs }: { pollMs: number },
+  { pollMs, maxBackoffMs = 60_000 }: WorkerLoopOptions,
 ): { stop: () => Promise<void> } {
   let running = true;
+  let wake: (() => void) | null = null;
+  function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        wake = null;
+        resolve();
+      }, ms);
+      wake = () => {
+        clearTimeout(timer);
+        wake = null;
+        resolve();
+      };
+    });
+  }
+
   const loop = (async () => {
+    let failures = 0;
     while (running) {
-      let result: WorkResult = "idle";
+      let result: WorkResult | "error" = "idle";
       try {
         result = await workOnce(deps);
       } catch (error) {
         // The database itself failed; wait and try again rather than die.
         console.error(`worker ${deps.queue.workerId}:`, error);
+        result = "error";
       }
-      if (result === "idle" && running) {
-        await new Promise((r) => setTimeout(r, pollMs));
+      if (!running) break;
+      if (
+        result === "unavailable" ||
+        result === "released" ||
+        result === "error"
+      ) {
+        failures++;
+        await sleep(Math.min(pollMs * 2 ** (failures - 1), maxBackoffMs));
+      } else {
+        if (result === "judged") failures = 0;
+        if (result === "idle") await sleep(pollMs);
       }
     }
   })();
   return {
     stop: async () => {
       running = false;
+      wake?.();
       await loop;
     },
   };
