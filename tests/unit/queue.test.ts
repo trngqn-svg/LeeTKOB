@@ -8,6 +8,7 @@ import {
   claimNext,
   finishJob,
   heartbeat,
+  putBack,
   release,
   type QueueOptions,
 } from "../../src/db/queue.ts";
@@ -253,6 +254,43 @@ describe("release", () => {
     claimNext(db, W1, T0);
     expect(release(db, W2, "s1", at(5))).toBe(false);
     expect(row("s1")).toMatchObject({ status: "running", locked_by: "w1" });
+  });
+});
+
+describe("putBack (the sandbox was unavailable)", () => {
+  it("puts the job back at once without counting the attempt", () => {
+    submit("s1", iso(-20));
+    claimNext(db, W1, T0);
+    expect(putBack(db, W1, "s1")).toBe(true);
+    expect(row("s1")).toMatchObject({
+      status: "queued",
+      attempts: 0,
+      locked_by: null,
+      lease_until: null,
+      started_at: iso(0),
+      finished_at: null,
+    });
+    expect(claimNext(db, W2, at(6))?.id).toBe("s1");
+  });
+
+  it("never fails the job, however many times the sandbox is unavailable", () => {
+    submit("s1", iso(-20));
+    for (let i = 0; i < 10; i++) {
+      expect(claimNext(db, W1, at(i))?.id).toBe("s1");
+      expect(putBack(db, W1, "s1")).toBe(true);
+    }
+    expect(row("s1")).toMatchObject({ status: "queued", attempts: 0 });
+  });
+
+  it("answers false to a worker that does not hold the job", () => {
+    submit("s1", iso(-20));
+    claimNext(db, W1, T0);
+    expect(putBack(db, W2, "s1")).toBe(false);
+    expect(row("s1")).toMatchObject({
+      status: "running",
+      locked_by: "w1",
+      attempts: 1,
+    });
   });
 });
 

@@ -282,20 +282,44 @@ describe("workOnce", () => {
     expect(count("verdicts")).toBe(0);
   });
 
-  it("releases the job at once when the sandbox fails (a failure of the system)", async () => {
+  it("puts the job back without counting the attempt when the sandbox is unavailable", async () => {
     const id = await submit();
     const d = deps({
       runInSandbox: async () => {
         throw new Error("Cannot connect to the Docker daemon");
       },
     });
-    expect(await workOnce(d)).toBe("released");
+    expect(await workOnce(d)).toBe("unavailable");
     expect(d.calls.pipeline).toHaveLength(0);
     expect(status(id)).toMatchObject({
       status: "queued",
-      attempts: 1,
+      attempts: 0,
       locked_by: null,
     });
+  });
+
+  it("fails no submission during a sandbox outage, and judges each once when it is back", async () => {
+    const first = await submit("int main() { return 1; }\n");
+    const second = await submit("int main() { return 2; }\n");
+    let down = true;
+    const d = deps({
+      runInSandbox: async () => {
+        if (down) throw new Error("Cannot connect to the Docker daemon");
+        return ACCEPTED;
+      },
+    });
+    for (let i = 0; i < 10; i++) {
+      expect(await workOnce(d)).toBe("unavailable");
+    }
+    expect(status(first)).toMatchObject({ status: "queued", attempts: 0 });
+    expect(status(second)).toMatchObject({ status: "queued", attempts: 0 });
+
+    down = false;
+    expect(await workOnce(d)).toBe("judged");
+    expect(await workOnce(d)).toBe("judged");
+    expect(await workOnce(d)).toBe("idle");
+    expect(status(first)).toMatchObject({ status: "judged", attempts: 1 });
+    expect(status(second)).toMatchObject({ status: "judged", attempts: 1 });
   });
 
   it("releases the job when the pipeline throws, and stores no verdict", async () => {
@@ -310,11 +334,11 @@ describe("workOnce", () => {
     expect(count("verdicts")).toBe(0);
   });
 
-  it("marks the job failed after MAX_ATTEMPTS failures of the system", async () => {
+  it("marks the job failed after MAX_ATTEMPTS failures of the pipeline", async () => {
     const id = await submit();
     const d = deps({
-      runInSandbox: async () => {
-        throw new Error("image missing");
+      judgeConstraints: async () => {
+        throw new Error("bug in the pipeline");
       },
     });
     for (let i = 0; i < QUEUE.maxAttempts; i++) {
@@ -380,5 +404,37 @@ describe("workOnce", () => {
     expect(await workOnce(d)).toBe("judged");
     expect(new Set(leases).size).toBeGreaterThan(1);
     expect(leases).toEqual([...leases].sort());
+  });
+});
+
+describe("startWorker after a failure (ARCHITECTURE 4.1)", () => {
+  it("waits longer after each failure in a row instead of claiming again at once", async () => {
+    const id = await submit();
+    let tries = 0;
+    const d = deps({
+      runInSandbox: async () => {
+        tries++;
+        // Yield to the timers, as a real call to Docker does.
+        await new Promise((r) => setTimeout(r, 0));
+        throw new Error("Cannot connect to the Docker daemon");
+      },
+    });
+    const worker = startWorker(d, { pollMs: 5, maxBackoffMs: 40 });
+    await new Promise((r) => setTimeout(r, 200));
+    await worker.stop();
+    // Waits of 5, 10, 20, 40, 40 ... ms give about 7 tries in 200 ms. Without a wait, hundreds.
+    expect(tries).toBeGreaterThanOrEqual(3);
+    expect(tries).toBeLessThanOrEqual(15);
+    expect(status(id)).toMatchObject({ status: "queued", attempts: 0 });
+  });
+
+  it("stops at once, even in the middle of a long wait", async () => {
+    const d = deps();
+    const worker = startWorker(d, { pollMs: 10_000 });
+    // The queue is empty, so the worker is now waiting 10 s before it looks again.
+    await new Promise((r) => setTimeout(r, 20));
+    const started = Date.now();
+    await worker.stop();
+    expect(Date.now() - started).toBeLessThan(1000);
   });
 });

@@ -74,7 +74,11 @@ export function heartbeat(
   return changes > 0;
 }
 
-/** After a failure of the system: back to queued at once, or failed on the last attempt. */
+/**
+ * After any other error that is not the student's (a bug in the pipeline): back to queued
+ * at once, or failed on the last attempt. The attempt counts, so such a job cannot block
+ * the queue forever.
+ */
 export function release(
   db: DatabaseSync,
   opts: QueueOptions,
@@ -96,6 +100,26 @@ export function release(
       id,
       opts.workerId,
     );
+  return changes > 0;
+}
+
+/**
+ * After the sandbox was unavailable (Docker down, image missing): back to queued at once,
+ * and the attempt is not counted, so an outage never turns a submission into failed.
+ */
+export function putBack(
+  db: DatabaseSync,
+  opts: QueueOptions,
+  id: string,
+): boolean {
+  const { changes } = db
+    .prepare(
+      `UPDATE submissions
+          SET status = 'queued', attempts = attempts - 1,
+              locked_by = NULL, lease_until = NULL
+        WHERE id = ? AND status = 'running' AND locked_by = ?`,
+    )
+    .run(id, opts.workerId);
   return changes > 0;
 }
 
