@@ -57,8 +57,7 @@ services:
       retries: 3
       start_period: 20s
 
-  # Not started by default: src/worker-main.ts refuses to start until it is wired to
-  # the sandbox and the pipeline (T7, L7). Then start it with `--profile worker`.
+  # Start the judge worker with `--profile worker`.
   worker:
     image: leetkob-app
     profiles:
@@ -70,6 +69,8 @@ services:
     environment:
       LLM_API_KEY: ${LLM_API_KEY:?set LLM_API_KEY in the env file}
       LLM_MODEL: ${LLM_MODEL:?set LLM_MODEL in the env file}
+      MODEL_OFF: ${MODEL_OFF:-}
+      MODEL_TIMEOUT_MS: ${MODEL_TIMEOUT_MS:-}
       SANDBOX_IMAGE: leetkob-sandbox
     # The Docker socket, to start the sandbox containers. It is root on the VM, so the
     # worker opens no port. It runs as the node user, in the group that owns the socket.
