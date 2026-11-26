@@ -24,7 +24,9 @@
     "url": "git+https://github.com/trngqn-svg/LeeTKOB.git"
   },
   "dependencies": {
-    "fastify": "^5.12.8"
+    "fastify": "^5.12.8",
+    "tree-sitter-wasms": "^0.1.13",
+    "web-tree-sitter": "^0.20.8"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
