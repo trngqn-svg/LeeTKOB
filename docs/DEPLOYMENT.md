@@ -96,6 +96,28 @@ docker run --rm --network none --memory 64m --memory-swap 64m alpine echo ok
 docker run --rm --memory 64m alpine cat /sys/fs/cgroup/memory.max
 ```
 
+## 7.1 Deploy and update
+
+The public name is `leetkob-hcmus.eastasia.cloudapp.azure.com` (the DNS label of the public IP). Ports 80 and 443 are open in the network security group; Caddy gets the certificate from Let's Encrypt by itself on the first start. On 2026-11-26 the stack was tried on the VM under another project name: `/health` answered 200 over HTTPS from the internet, plain HTTP redirected to HTTPS, and port 3000 could not be reached from outside. The trial was then removed with its volumes.
+
+First time, from the clone of the repository on the VM:
+
+```bash
+# The settings file, readable by root only. Fill in SEED_PASSWORD, LLM_API_KEY, LLM_MODEL
+# and DOCKER_GID (getent group docker | cut -d: -f3) with an editor run as root.
+sudo install -D --mode 600 --owner root deploy/leetkob.env.example /etc/leetkob/leetkob.env
+
+# The sandbox image the worker starts containers from, then the stack.
+sudo docker build --tag leetkob-sandbox docker/sandbox
+sudo docker compose --env-file /etc/leetkob/leetkob.env --file deploy/compose.yaml up --detach --build
+```
+
+The worker is in the Compose profile `worker` and is not started yet: `src/worker-main.ts` refuses to start until it is wired to the sandbox and the pipeline. Once it is, add `--profile worker` to the last command.
+
+To update: `git pull`, rebuild the sandbox image if `docker/sandbox/` changed, and run the last command again. The `data` volume keeps the database; the API applies new migrations and resets the test accounts' password to `SEED_PASSWORD` when it starts.
+
+To look: `sudo docker compose --file deploy/compose.yaml ps`, and `logs --tail 100 api` (or `caddy`, `worker`).
+
 ## 8. What to verify before relying on this
 
 - Is the Azure for Students credit active for the `@student.hcmus.edu.vn` account?
