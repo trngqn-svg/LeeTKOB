@@ -98,4 +98,9 @@ Each becomes a numbered decision in `DECISIONS.md` once chosen.
 
 ## 10. Results
 
-No spike has been run yet. Results are added here, one subsection per spike, with the date, the numbers, and the decision they led to.
+### Spike A — Hard-rule parser (2026-11-26)
+
+- **Environment:** Windows 11, Node v22.16.0.
+- **Finding:** `web-tree-sitter@0.27.2` rejected `tree-sitter-wasms/out/tree-sitter-cpp.wasm` with a `getDylinkMetadata` error, whereas `web-tree-sitter@0.20.8` loaded the WASM grammar with zero native builds (`node-gyp` not required).
+- **Measurement on the 55 dev-set ban-list pairs:** 55/55 correct (0 wrongful deductions, 100% recall, 0 unsure), plus 15 unit trap/disguised tests passing in ~368 ms (`tests/unit/hard-rules.test.ts`).
+- **Decision:** Keep `web-tree-sitter@0.20.8` + `tree-sitter-wasms` with invoked-macro expansion (`##` token pasting included) and lexical scope tracking (Decision 11 marked `decided`).

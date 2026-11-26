@@ -22,7 +22,7 @@ Where the team wrote a reason down, the reason starts with "Recorded" and names 
 | 8   | SQLite as the database and the queue                     | proposed | One writer at a time, and an experimental module           |
 | 9   | Leases and a guarded finish                              | proposed | A job can be judged twice                                  |
 | 10  | Our own Docker sandbox, not Judge0                       | proposed | Shared kernel, and the worker needs Docker                 |
-| 11  | Syntax-aware parser for the hard rules                   | proposed | Syntax without meaning: macros and aliases                 |
+| 11  | Syntax-aware parser for the hard rules                   | decided  | Syntax without meaning: macros and aliases                 |
 | 12  | One model call per semantic constraint                   | proposed | More calls and more quota                                  |
 | 13  | Strict rules for model input and output                  | proposed | More unsure, and comments that explain intent are lost     |
 | 14  | Verdicts only in the review queue, API only              | proposed | TA workload, and no early signal for students              |
@@ -141,12 +141,12 @@ The reason behind all of them is in the brief: a wrongful deduction can push a s
 
 ### 11. A syntax-aware parser for the hard rules
 
-- **Status:** proposed. A one-hour test decides.
-- **Choice:** ban-list constraints are decided by code that reads C++ syntax: tree-sitter (a parser that runs in Node as WebAssembly) if it works on Windows and in CI, and otherwise a hand-written tokenizer.
-- **Other options:** regular expressions or a text search (the rubric scores them 3 to 7 of 15). A full compiler front end such as clang.
-- **Why:** the traps are about syntax: a banned name in a comment or a string, a function of the student's own named `sort`, `<algorithm>` included only for `std::swap`. The constraint "no loop statements" is about statements, not names. The rule must work on any problem, so it reads the banned names from the backticks in the constraint text.
-- **Trade-offs:** tree-sitter gives a syntax tree but not meaning. It does not expand macros or decide which `sort` a bare call means, so disguised cases (a macro or an alias that hides the name) need extra code. It adds a WebAssembly dependency. A tokenizer has no dependency, but we must write the scope rules ourselves. Clang resolves names and macros exactly, but it is a large binary in the image and slower.
-- **Change it when:** the dev set shows wrongful deductions or missed disguised violations that the parser cannot express.
+- **Status:** decided. Confirmed by 23120292 on 2026-11-26 after Spike A (`docs/RECONSIDERATION.md`, section 10).
+- **Choice:** `web-tree-sitter@0.20.8` with the prebuilt C++ WebAssembly grammar (`tree-sitter-wasms`), paired with invoked-macro expansion (including `##` token pasting) and lexical scope tracking (`using namespace`, `using`, namespace aliases, and user declarations).
+- **Other options:** regular expressions or a text search (the rubric scores them 3 to 7 of 15). A hand-written tokenizer. A full compiler front end such as clang.
+- **Why:** the spike showed `web-tree-sitter@0.20.8` + `tree-sitter-wasms` loads cleanly on Windows Node 22.16 without native compilation (`web-tree-sitter@0.27.2` failed `getDylinkMetadata` against the prebuilt WASM) and achieves 55/55 (0 wrongful deductions, 100% recall, ~368 ms for 71 tests) on the dev-set ban-list pairs. It never opens files on disk, avoiding clang include-path risks.
+- **Trade-offs:** tree-sitter gives a syntax tree without semantic name resolution, so macro expansion and scope shadowing live in `src/judge/hard-rules.ts` alongside two WASM dependencies.
+- **Change it when:** the dev set or held-out/red-team tests show disguised violations or macro edge cases that syntax-level expansion cannot express.
 
 ### 12. One model call per submission and semantic constraint
 
