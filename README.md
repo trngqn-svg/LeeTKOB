@@ -45,6 +45,7 @@ LeeTKOB/
 │   └── leetkob.env.example    # What the root-only settings file on the VM holds
 ├── docker/
 │   ├── app/Dockerfile         # The app image, for the API and the worker
+│   ├── checker/Dockerfile     # The constraint checker image (MODEL_OFF=1 / --network none)
 │   └── sandbox/Dockerfile     # The sandbox image: g++ and the non-root user 10001, nothing else
 ├── docs/
 │   ├── ARCHITECTURE.md        # The design: schema, queue state machine, pipeline, endpoints
@@ -56,6 +57,7 @@ LeeTKOB/
 │   ├── c4/                    # C4 diagrams: system context (C1) and containers (C2)
 │   ├── contract/              # One file per endpoint: the behaviour the tests copy
 │   └── pa2/                   # Screenshots of the branch protection for PA#2
+├── eval-own/                  # Team's own 5 eval cases (power-mod: clean, trap, obvious, disguised, injection)
 ├── leetkob-eval/              # The lecturer's dev set and eval.mjs. Never edit it
 ├── src/
 │   ├── server.ts              # Starts the API: opens the database, listens on PORT
@@ -67,6 +69,9 @@ LeeTKOB/
 │   ├── worker.ts              # The judge worker loop: claim, sandbox, pipeline, finish
 │   ├── worker-config.ts       # Reads and checks the worker's environment variables
 │   ├── worker-main.ts         # npm run worker: the worker process
+│   ├── checker/
+│   │   ├── cli.ts             # npm run checker: dataset folder in, JSONL predictions and call log out
+│   │   └── eval-gate.ts       # Runs eval.mjs and fails on exit 2 or any wrongful deduction
 │   ├── db/
 │   │   ├── connection.ts      # Opens SQLite with the three pragmas
 │   │   ├── migrate.ts         # Applies the pending migrations in order

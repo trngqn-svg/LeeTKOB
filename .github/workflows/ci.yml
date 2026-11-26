@@ -60,3 +60,35 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Task L4: build the checker image and run it with MODEL_OFF=1 and --network none
+  # on both leetkob-eval and eval-own. Fails on eval.mjs exit 2 or any wrongful deduction.
+  checker:
+    name: checker (MODEL_OFF=1, --network none, eval)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: docker build --file docker/checker/Dockerfile --tag leetkob-checker:ci .
+      - run: |
+          OUT_DIR="$(mktemp -d)"
+          chmod 777 "$OUT_DIR"
+          docker run --rm --network none -e MODEL_OFF=1 \
+            -v "$PWD/leetkob-eval:/data:ro" -v "$OUT_DIR:/out" \
+            leetkob-checker:ci --data /data --output /out/predictions.jsonl
+          npx tsx src/checker/eval-gate.ts \
+            --data leetkob-eval \
+            --predictions "$OUT_DIR/predictions.jsonl" \
+            --json "$OUT_DIR/summary.json"
+          docker run --rm --network none -e MODEL_OFF=1 \
+            -v "$PWD/eval-own:/data:ro" -v "$OUT_DIR:/out" \
+            leetkob-checker:ci --data /data --output /out/own-predictions.jsonl
+          npx tsx src/checker/eval-gate.ts \
+            --data eval-own \
+            --predictions "$OUT_DIR/own-predictions.jsonl" \
+            --json "$OUT_DIR/own-summary.json"
