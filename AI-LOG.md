@@ -315,3 +315,12 @@ Kept: `web-tree-sitter@0.20.8` with `tree-sitter-wasms` (WASM C++ grammar with n
 Changed: `web-tree-sitter@0.27.2` failed `getDylinkMetadata` loading the prebuilt `tree-sitter-wasms` grammar, so it was downgraded to `web-tree-sitter@0.20.8`, which loaded cleanly on Node 22.16. During the first test run, `namespace s = std; s::sort(...)` failed because `web-tree-sitter` creates fresh `SyntaxNode` wrapper objects on each field access (`c !== aliasNode` compared object references instead of `.id`); every node identity comparison in `src/judge/hard-rules.ts` was switched to `.id`.
 Rejected: `tree-sitter-cpp` npm package (runs `node-gyp-build` at install time); regex-only ban-list matching.
 By hand: 23120292 approved package installation, tests-first commits, and running the four checks locally (`lint`, `format:check`, `typecheck`, `test`: 457 passed, 9 sandbox tests skipped). The live Gemini request-id spike (L1 part 2) awaits `LLM_API_KEY` in `.env`.
+
+## 2026-11-26 — L3 model client, prompt builder and guardrails
+
+Tool: Antigravity (Gemini).
+Asked for: 23120292 asked for task L3 (`src/judge/model.ts`, `src/judge/guardrails.ts`) with tests first using a fake model client and mock `fetch`.
+Kept: `tests/unit/guardrails.test.ts` (13 tests) and `tests/unit/model.test.ts` (4 tests) committed red before `src/judge/guardrails.ts` and `src/judge/model.ts`. `stripCommentsKeepLines` blanks `//` (including backslash continuations) and `/* ... */` comments while preserving raw strings, string/char literals, and exact line numbers; `buildPrompt` includes only the statement, one constraint, and numbered comment-free code; `parseAndValidateReply` rejects extra top-level or evidence keys, empty evidence on violations, invalid lines, and text mismatches, mapping valid lines back to the original source; `judgeSemanticConstraint` enforces `AbortController` timeouts and records `ModelCallRecord` for every outcome; `createGeminiModelClient` sends `x-goog-api-key` in headers with `temperature: 0` and `responseSchema`, and scrubs errors so the key cannot leak.
+Changed: none — all 17 new tests passed on the first run after implementation.
+Rejected: putting the API key in the URL query string; stripping comments with regex (unsafe around strings and raw string literals); using real network calls in tests.
+By hand: 23120292 approved tests-first commits and running all four checks locally (`lint`, `format:check`, `typecheck`, `test`: 474 passed, 9 sandbox tests skipped). Live Gemini API calls are deferred until `.env` is configured.
