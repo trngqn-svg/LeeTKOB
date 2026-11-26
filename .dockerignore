@@ -1,0 +1,7 @@
+# The app image gets only what it runs (docker/app/Dockerfile). Everything else stays
+# out, above all .env, the database in data/ and the git history.
+*
+!package.json
+!package-lock.json
+!tsconfig.json
+!src/

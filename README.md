@@ -26,6 +26,7 @@ What each folder and file is for. Whoever adds, moves or deletes a file updates 
 LeeTKOB/
 ├── .github/workflows/ci.yml   # CI: lint, format, typecheck, tests and the gitleaks scan
 ├── .claude/settings.json      # What Claude Code may run, must ask for, or never does here
+├── .dockerignore              # Lets only package*.json, tsconfig.json and src/ into the app image
 ├── .env.example               # Every environment variable, without values
 ├── .gitattributes             # LF line endings for every text file; PNGs are binary
 ├── .gitignore                 # Files git never tracks (.env, data/, node_modules/)
@@ -38,7 +39,12 @@ LeeTKOB/
 ├── eslint.config.js           # ESLint 9 and typescript-eslint settings
 ├── package.json               # Scripts and dependencies (package-lock.json pins them)
 ├── tsconfig.json              # TypeScript strict settings for src/ and tests/
+├── deploy/
+│   ├── compose.yaml           # The deployment: Caddy, the API and the worker on the VM
+│   ├── Caddyfile              # HTTPS for the public name, forwarded to the API
+│   └── leetkob.env.example    # What the root-only settings file on the VM holds
 ├── docker/
+│   ├── app/Dockerfile         # The app image, for the API and the worker
 │   └── sandbox/Dockerfile     # The sandbox image: g++ and the non-root user 10001, nothing else
 ├── docs/
 │   ├── ARCHITECTURE.md        # The design: schema, queue state machine, pipeline, endpoints

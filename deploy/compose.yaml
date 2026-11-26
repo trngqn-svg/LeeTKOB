@@ -1,0 +1,88 @@
+# The deployment (task Q4, docs/DEPLOYMENT.md section 4): Caddy, the API and the judge
+# worker on one VM, sharing the SQLite file on the `data` volume. Start it from the
+# repository root on the VM, with the settings file that only root can read:
+#
+#   sudo docker build --tag leetkob-sandbox docker/sandbox
+#   sudo docker compose --env-file /etc/leetkob/leetkob.env --file deploy/compose.yaml up --detach --build
+#
+# deploy/leetkob.env.example lists what that file holds. Compose reads it only to fill
+# the ${...} below; each service gets only the variables it names here, so the model
+# key reaches the worker and nothing else.
+name: leetkob
+
+services:
+  caddy:
+    image: caddy:2.10
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in the env file}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/app/Dockerfile
+    image: leetkob-app
+    restart: unless-stopped
+    # The schema and the test accounts first (idempotent), then the server.
+    command:
+      - sh
+      - -c
+      - ./node_modules/.bin/tsx src/db/cli.ts seed && exec ./node_modules/.bin/tsx src/server.ts
+    environment:
+      SEED_PASSWORD: ${SEED_PASSWORD:?set SEED_PASSWORD in the env file}
+    volumes:
+      - data:/data
+    # Only Caddy reaches it, on the Compose network; no port on the VM.
+    expose:
+      - "3000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # Not started by default: src/worker-main.ts refuses to start until it is wired to
+  # the sandbox and the pipeline (T7, L7). Then start it with `--profile worker`.
+  worker:
+    image: leetkob-app
+    profiles:
+      - worker
+    restart: unless-stopped
+    command:
+      - ./node_modules/.bin/tsx
+      - src/worker-main.ts
+    environment:
+      LLM_API_KEY: ${LLM_API_KEY:?set LLM_API_KEY in the env file}
+      LLM_MODEL: ${LLM_MODEL:?set LLM_MODEL in the env file}
+      SANDBOX_IMAGE: leetkob-sandbox
+    # The Docker socket, to start the sandbox containers. It is root on the VM, so the
+    # worker opens no port. It runs as the node user, in the group that owns the socket.
+    group_add:
+      - ${DOCKER_GID:?set DOCKER_GID in the env file}
+    volumes:
+      - data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  data:
+  caddy_data:
+  caddy_config:
