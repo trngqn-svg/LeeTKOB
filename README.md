@@ -78,7 +78,9 @@ LeeTKOB/
 │   │   ├── types.ts           # Shared types: constraint, verdict, model client, sandbox
 │   │   ├── sandbox.ts         # Compiles and runs a submission in Docker, with the nine minimums
 │   │   ├── constraints.ts     # Reads a constraint's text: ban list or semantic
-│   │   └── hard-rules.ts      # Syntax-aware C++ ban-list checker (web-tree-sitter)
+│   │   ├── hard-rules.ts      # Syntax-aware C++ ban-list checker (web-tree-sitter)
+│   │   ├── guardrails.ts      # Comment stripping, prompt builder, schema and evidence checks
+│   │   └── model.ts           # Gemini API model client and fake client for tests
 │   └── routes/                # One file per group of endpoints
 │       ├── health.ts          # GET /health
 │       ├── login.ts           # POST /auth/login
