@@ -1,0 +1,8 @@
+# Caddy ends HTTPS for the public name and forwards to the API (docs/DEPLOYMENT.md,
+# section 4). It gets and renews the certificate by itself; DOMAIN comes from
+# deploy/compose.yaml.
+{$DOMAIN} {
+	encode gzip
+	header -Server
+	reverse_proxy api:3000
+}
