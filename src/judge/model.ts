@@ -38,12 +38,13 @@ interface GeminiResponsePayload {
   responseId?: string;
   candidates?: {
     content?: {
-      parts?: { text?: string }[];
+      parts?: { text?: string; thought?: boolean }[];
     };
   }[];
   usageMetadata?: {
     promptTokenCount?: number;
     candidatesTokenCount?: number;
+    thoughtsTokenCount?: number;
   };
 }
 
@@ -114,14 +115,22 @@ export function createGeminiModelClient(options: {
 
       const data = (await response.json()) as GeminiResponsePayload;
       const parts = data.candidates?.[0]?.content?.parts ?? [];
-      const text = parts.map((p) => p.text ?? "").join("");
+      const text = parts
+        .filter((p) => p.thought !== true)
+        .map((p) => p.text ?? "")
+        .join("");
       const requestId =
         data.responseId ??
         response.headers.get("x-request-id") ??
         response.headers.get("x-goog-request-id") ??
         null;
       const promptTokens = data.usageMetadata?.promptTokenCount ?? null;
-      const completionTokens = data.usageMetadata?.candidatesTokenCount ?? null;
+      const candidatesTokens = data.usageMetadata?.candidatesTokenCount;
+      const thoughtsTokens = data.usageMetadata?.thoughtsTokenCount;
+      const completionTokens =
+        candidatesTokens === undefined && thoughtsTokens === undefined
+          ? null
+          : (candidatesTokens ?? 0) + (thoughtsTokens ?? 0);
 
       return {
         text,
