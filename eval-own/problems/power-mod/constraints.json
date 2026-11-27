@@ -1,0 +1,12 @@
+[
+  {
+    "id": "C1",
+    "text": "Do not call a library power function: `std::pow`, `pow`, `powf`, `powl`.",
+    "deduction": 3
+  },
+  {
+    "id": "C2",
+    "text": "Compute each power with binary exponentiation (exponentiation by squaring) you wrote yourself, iterative or recursive, so each query runs in O(log b) steps. Repeated multiplication in O(b) steps or calling a library power function does not satisfy this constraint.",
+    "deduction": 4
+  }
+]

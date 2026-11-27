@@ -333,3 +333,12 @@ Kept: `tests/unit/pipeline.test.ts` (10 tests covering `readPipelineConfig`, `ba
 Changed: none — all 10 new tests and all existing suite tests passed on the first run.
 Rejected: letting a hard-rule crash fail the entire submission instead of isolating it as `rule_error` and still judging remaining constraints.
 By hand: 23120292 approved tests-first commits and running all four checks locally (`lint`, `format:check`, `typecheck`, `test`: 484 passed, 9 sandbox tests skipped). Live `npm run worker` with Docker/Gemini awaits `.env` and Docker Desktop.
+
+## 2026-11-26 — L4 checker CLI, Dockerfile, CI job and L5 own eval cases
+
+Tool: Antigravity (Gemini).
+Asked for: 23120292 asked for task L4 (`src/checker/cli.ts`, `src/checker/eval-gate.ts`, `docker/checker/Dockerfile`, CI job `checker`) with tests first, plus the five own evaluation cases in `eval-own/` (L5 offline part).
+Kept: `tests/unit/checker.test.ts` (7 tests) committed red before implementation; `src/checker/cli.ts` (`npm run checker`) reading `statement.md` and `constraints.json` generically and writing predictions + call-log JSONL; `src/checker/eval-gate.ts` enforcing `eval.mjs` exit 0/1 with `wrongful === 0` without shell pipes; `docker/checker/Dockerfile` running as `node`; CI job `checker` in `.github/workflows/ci.yml` running with `MODEL_OFF=1` and `--network none` on both `leetkob-eval` and `eval-own`; and `eval-own/` (`power-mod`: 5 test pairs, 5 C++ solutions covering clean, `trap`, `obvious`, `disguised`, and `injection` cases, verified with `eval.mjs` under `MODEL_OFF=1` with 0 wrongful deductions and 2/2 ban-list violations caught).
+Changed: none — `npm run checker` and `eval-gate` passed on both `leetkob-eval` and `eval-own` under `MODEL_OFF=1` on the first run.
+Rejected: putting `|| true` or shell pipes around `eval.mjs` in CI; editing `leetkob-eval/` to store custom cases.
+By hand: 23120292 approved `.github/workflows/ci.yml` edits, tests-first commits, and running all four checks locally (`lint`, `format:check`, `typecheck`, `test`: 491 passed, 9 sandbox tests skipped). Local `docker build`/`docker run` for `docker/checker/Dockerfile` and `g++` compile check for `eval-own` were not run locally because Docker Desktop and `g++` were not running/installed; CI runs the container check on the PR, and live Gemini dev-set eval (L5/L6) awaits `LLM_API_KEY`.
