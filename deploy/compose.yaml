@@ -66,11 +66,15 @@ services:
     command:
       - ./node_modules/.bin/tsx
       - src/worker-main.ts
+    # The key and the model may be empty only with MODEL_OFF=1. The worker checks that
+    # itself when it starts (readPipelineConfig) and stops with a message otherwise,
+    # which Compose cannot express. MODEL_DELAY_MS spaces the calls for the rate limit.
     environment:
-      LLM_API_KEY: ${LLM_API_KEY:?set LLM_API_KEY in the env file}
-      LLM_MODEL: ${LLM_MODEL:?set LLM_MODEL in the env file}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
       MODEL_OFF: ${MODEL_OFF:-}
       MODEL_TIMEOUT_MS: ${MODEL_TIMEOUT_MS:-}
+      MODEL_DELAY_MS: ${MODEL_DELAY_MS:-}
       SANDBOX_IMAGE: leetkob-sandbox
     # The Docker socket, to start the sandbox containers. It is root on the VM, so the
     # worker opens no port. It runs as the node user, in the group that owns the socket.
