@@ -94,11 +94,11 @@ The reason behind all of them is in the brief: a wrongful deduction can push a s
 
 ### 6. Google Gemini free tier with a US$0 cap
 
-- **Status:** decided for the provider. The model itself is open.
-- **Choice:** the Google Gemini API on the free tier. The key is made on a Google Cloud project with no billing account. It lives only in `.env` and in CI secrets.
-- **Other options:** a paid provider with a budget cap, or a model that runs on our own machine.
-- **Why:** Recorded in `README.md`: with no billing account the key cannot be charged, and requests over the free quota are refused with HTTP 429, not billed.
-- **Trade-offs:** the quota limits how fast the dev-set run and the deployment can call the model, so a burst of 80 submissions may hit 429 and produce `unsure`. That is safe but not helpful. Google may use free-tier prompts to improve its products, which is why only the statement, one constraint and code without comments or identity are sent. Free-tier limits and terms can change. The cost of one lab in the README will be a calculation at list prices, not an invoice. Because the test accounts are published in `PA3.md`, anyone can spend the quota, so the quota is the spending cap.
+- **Status:** decided (provider decided in PA#2; model `gemini-3.5-flash-lite` confirmed by 23120292 on 2026-11-27 after Spike C).
+- **Choice:** the Google Gemini API on the free tier, with `LLM_MODEL=gemini-3.5-flash-lite`. The key is made on a Google Cloud project with no billing account. It lives only in `.env` and in CI secrets. The API returns `responseId` in the JSON body, which we record as `request_id` in `model_calls` and the checker call log.
+- **Other options:** a paid provider with a budget cap, or a model that runs on our own machine, or `gemini-2.5-flash` / `gemini-4-hydrogen` / `gemini-3.6-flash`.
+- **Why:** Recorded in `README.md`: with no billing account the key cannot be charged, and requests over the free quota are refused with HTTP 429, not billed. Spike C (`docs/RECONSIDERATION.md`, section 10) showed that `gemini-2.5-flash`, `gemini-4-hydrogen`, and `gemini-3.6-flash` hit a free-tier 20 requests/day cap mid-run, whereas `gemini-3.5-flash-lite` completed all 47 dev-set calls (`0` wrongful deductions, `97.3%` recall, `1.0%` unsure) and all 5 `eval-own` calls (`0` wrongful, `100%` recall, `0%` unsure) at a list-price estimate of US\$0.00010387/call (US\$0.0083–\$0.0166 for an 80-submission lab).
+- **Trade-offs:** the quota limits how fast the dev-set run and the deployment can call the model (requiring `MODEL_DELAY_MS=2500`–`4200` on the free tier), so a burst of 80 submissions may hit 429 and produce `unsure`. That is safe but creates TA work. Google may use free-tier prompts to improve its products, which is why only the statement, one constraint and code without comments or identity are sent. Free-tier limits and terms can change.
 - **Change it when:** 429 makes the product unusable in the PA#5 load test, or the free terms change.
 
 ## Decisions proposed for PA#3
