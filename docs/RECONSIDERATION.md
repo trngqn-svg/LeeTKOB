@@ -104,3 +104,15 @@ Each becomes a numbered decision in `DECISIONS.md` once chosen.
 - **Finding:** `web-tree-sitter@0.27.2` rejected `tree-sitter-wasms/out/tree-sitter-cpp.wasm` with a `getDylinkMetadata` error, whereas `web-tree-sitter@0.20.8` loaded the WASM grammar with zero native builds (`node-gyp` not required).
 - **Measurement on the 55 dev-set ban-list pairs:** 55/55 correct (0 wrongful deductions, 100% recall, 0 unsure), plus 15 unit trap/disguised tests passing in ~368 ms (`tests/unit/hard-rules.test.ts`).
 - **Decision:** Keep `web-tree-sitter@0.20.8` + `tree-sitter-wasms` with invoked-macro expansion (`##` token pasting included) and lexical scope tracking (Decision 11 marked `decided`).
+
+### Spike C — Model selection and request id (2026-11-27)
+
+- **Request id check (L1):** Google Gemini `generateContent` returns `responseId` on every 200 response (plus `usageMetadata.promptTokenCount`, `candidatesTokenCount`, and for thinking models `thoughtsTokenCount`).
+- **Comparison on `leetkob-eval` (47 semantic pairs, same prompt and strict JSON schema):**
+  - `gemini-2.5-flash`: 21/21 successful calls were 100% accurate (0 wrongful, 9/9 violations caught), then hit the free-tier 20 requests/day quota (`GenerateRequestsPerDayPerProjectPerModel-FreeTier`, HTTP 429) on the remaining 26 calls.
+  - `gemini-4-hydrogen`: 15/15 successful calls were 100% accurate (0 wrongful, 5/5 violations caught), then hit HTTP 429/quota on the remaining 32 calls.
+  - `gemini-3.6-flash`: 21 `ok` calls (0 wrongful), 3 timeouts (`MODEL_TIMEOUT_MS=45000`), 23 HTTP 429 quota errors.
+  - `gemini-2.5-flash-lite`: 24 `ok` calls (`1` wrongful deduction on `dynamic-array/s04 C3` before prompt guidance update), 23 HTTP 429 quota errors.
+  - `gemini-3.5-flash-lite` (after adding literal explicit-exception guidance in `src/judge/guardrails.ts`): 46/47 `ok` (1 transient 113 ms HTTP error fell back safely to `unsure`), **0 wrongful deductions**, **97.3% (36/37) recall**, **1.0% (1/102) unsure rate** -> **`PASS`** (`eval.mjs` exit 0). On `eval-own` (5 semantic pairs, `MODEL_DELAY_MS=4200`): 5/5 `ok`, **0 wrongful**, **100.0% (5/5) recall**, **0.0% unsure** -> **`PASS`**.
+- **Cost measurement (`gemini-3.5-flash-lite`):** 39,185 input + 2,149 output tokens over 46 calls = US\$0.004778 (US\$0.00010387/call; US\$0.0083 for 80 calls, US\$0.0166 for 160 calls at list prices; US\$0 billed on free tier).
+- **Decision:** Set `LLM_MODEL=gemini-3.5-flash-lite` in Decision 6 (`decided`).

@@ -86,6 +86,18 @@ describe("buildPrompt", () => {
     expect(prompt).not.toContain("deduction");
     expect(prompt).not.toContain("4 points");
   });
+
+  it("instructs omitting line-number prefixes and treating unusual valid styles as pass", () => {
+    const prompt = buildPrompt({
+      statement: STATEMENT,
+      constraint: CONSTRAINT,
+      codeWithoutComments: "int main() { return 0; }",
+    });
+
+    expect(prompt).toMatch(/omit.*line[- ]number|without.*N \|/i);
+    expect(prompt).toMatch(/valid|unusual/i);
+    expect(prompt).toMatch(/explicit exceptions/i);
+  });
 });
 
 describe("judgeSemanticConstraint", () => {

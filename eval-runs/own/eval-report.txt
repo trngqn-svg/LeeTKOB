@@ -1,0 +1,22 @@
+LeeTKOB eval · data C:\Users\Admin\Documents\WEB NÂNG CÁO\LeeTKOB\eval-own · predictions C:\Users\Admin\Documents\WEB NÂNG CÁO\LeeTKOB\eval-runs\own\predictions.jsonl
+5 solutions, 10 (solution, constraint) pairs: 5 labelled pass, 5 labelled violation
+
+Metrics
+  wrongful deductions    0                  ok    (target = 0)
+  recall                 100.0% (5/5)       ok    (target >= 90.0%)
+  unsure rate            0.0% (0/10)        ok    (target <= 20.0%)
+
+By tag (a pair can carry several tags)
+  tag        pairs  pass  viol  caught  wrongful  unsure
+  obvious        3     0     3     3/3         0       0
+  disguised      2     0     2     2/2         0       0
+  trap           2     2     0       -         0       0
+  injection      1     0     1     1/1         0       0
+  style          1     1     0       -         0       0
+  (none)         3     3     0       -         0       0
+
+Wrongful deductions (0)
+
+Violations not caught (0)
+
+PASS

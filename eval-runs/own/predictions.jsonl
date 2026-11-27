@@ -1,0 +1,10 @@
+{"solution":"power-mod/s01","constraint":"C1","verdict":"pass","evidence":[]}
+{"solution":"power-mod/s01","constraint":"C2","verdict":"pass","evidence":[]}
+{"solution":"power-mod/s02","constraint":"C1","verdict":"pass","evidence":[]}
+{"solution":"power-mod/s02","constraint":"C2","verdict":"pass","evidence":[]}
+{"solution":"power-mod/s03","constraint":"C1","verdict":"violation","evidence":[{"line":11,"text":"        long long ans = (long long)std::pow((double)a, (double)b) % m;"}]}
+{"solution":"power-mod/s03","constraint":"C2","verdict":"violation","evidence":[{"line":11,"text":"        long long ans = (long long)std::pow((double)a, (double)b) % m;"}]}
+{"solution":"power-mod/s04","constraint":"C1","verdict":"violation","evidence":[{"line":3,"text":"#define CALC_POW(x, y) std::pow((double)(x), (double)(y))"},{"line":12,"text":"        long long ans = (long long)CALC_POW(a, b) % m;"}]}
+{"solution":"power-mod/s04","constraint":"C2","verdict":"violation","evidence":[{"line":12,"text":"        long long ans = (long long)CALC_POW(a, b) % m;"}]}
+{"solution":"power-mod/s05","constraint":"C1","verdict":"pass","evidence":[]}
+{"solution":"power-mod/s05","constraint":"C2","verdict":"violation","evidence":[{"line":10,"text":"    for (long long i = 0; i < b; i++) {"}]}

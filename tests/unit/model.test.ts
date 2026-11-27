@@ -131,6 +131,45 @@ describe("createGeminiModelClient", () => {
     expect(reply.completionTokens).toBeNull();
     expect(reply.costUsd).toBe(0);
   });
+
+  it("includes thoughtsTokenCount in completionTokens and costUsd and omits thought parts from text", async () => {
+    const fakeFetch: typeof fetch = async () =>
+      new Response(
+        JSON.stringify({
+          responseId: "resp-think-1",
+          candidates: [
+            {
+              content: {
+                parts: [
+                  { text: "internal reasoning...", thought: true },
+                  { text: '{"verdict":"pass","evidence":[]}' },
+                ],
+              },
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 200,
+            candidatesTokenCount: 10,
+            thoughtsTokenCount: 140,
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+
+    const client = createGeminiModelClient({
+      apiKey: "fake",
+      model: "gemini-2.5-flash",
+      fetchFn: fakeFetch,
+    });
+
+    const reply = await client.complete("prompt", new AbortController().signal);
+    expect(reply.text).toBe('{"verdict":"pass","evidence":[]}');
+    expect(reply.completionTokens).toBe(150);
+    expect(reply.costUsd).toBeCloseTo(
+      estimateCostUsd("gemini-2.5-flash", 200, 150),
+      8,
+    );
+  });
 });
 
 describe("createFakeModelClient", () => {
