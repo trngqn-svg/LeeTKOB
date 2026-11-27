@@ -324,3 +324,12 @@ Kept: `tests/unit/guardrails.test.ts` (13 tests) and `tests/unit/model.test.ts` 
 Changed: none — all 17 new tests passed on the first run after implementation.
 Rejected: putting the API key in the URL query string; stripping comments with regex (unsafe around strings and raw string literals); using real network calls in tests.
 By hand: 23120292 approved tests-first commits and running all four checks locally (`lint`, `format:check`, `typecheck`, `test`: 474 passed, 9 sandbox tests skipped). Live Gemini API calls are deferred until `.env` is configured.
+
+## 2026-11-26 — L7 judging pipeline and worker wiring
+
+Tool: Antigravity (Gemini).
+Asked for: 23120292 asked for task L7 (`src/judge/pipeline.ts`) and wiring `src/worker-main.ts` to the real sandbox (Q6) and pipeline (L7).
+Kept: `tests/unit/pipeline.test.ts` (10 tests covering `readPipelineConfig`, `ban_list` skipping the model, `rule_error` fallback on hard-rule throw, `MODEL_OFF=1` fallback, mixed labs, and SQLite + `workOnce` integration verifying `review_items` for `violation`, `unsure`, and sampled `pass`) committed red before `src/judge/pipeline.ts`, `src/worker-main.ts` wiring, `.env.example` (`MODEL_OFF`, `MODEL_TIMEOUT_MS`), and `deploy/compose.yaml`.
+Changed: none — all 10 new tests and all existing suite tests passed on the first run.
+Rejected: letting a hard-rule crash fail the entire submission instead of isolating it as `rule_error` and still judging remaining constraints.
+By hand: 23120292 approved tests-first commits and running all four checks locally (`lint`, `format:check`, `typecheck`, `test`: 484 passed, 9 sandbox tests skipped). Live `npm run worker` with Docker/Gemini awaits `.env` and Docker Desktop.

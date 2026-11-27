@@ -3,27 +3,16 @@
 // Docker. It stops after the job in hand on SIGTERM (docker stop) or SIGINT (Ctrl+C).
 import { hostname } from "node:os";
 import { openDatabase } from "./db/connection.ts";
-import type { RunInSandbox } from "./judge/types.ts";
+import { createPipelineFromEnv } from "./judge/pipeline.ts";
+import { runInSandbox } from "./judge/sandbox.ts";
 import { readWorkerConfig } from "./worker-config.ts";
-import { startWorker, type JudgeConstraints } from "./worker.ts";
-
-// shortcut: the real sandbox (Q6, src/judge/sandbox.ts) and pipeline (L7,
-// src/judge/pipeline.ts) are not merged yet. Set these two from their imports when they are.
-const runInSandbox: RunInSandbox | null = null;
-const judgeConstraints: JudgeConstraints | null = null;
+import { startWorker } from "./worker.ts";
 
 const config = readWorkerConfig(
   process.env,
   `worker-${hostname()}-${process.pid}`,
 );
-
-// A fake would turn every submission into "failed" after MAX_ATTEMPTS: refuse to start.
-if (!runInSandbox || !judgeConstraints) {
-  console.error(
-    "The worker is not wired yet: it needs the sandbox (Q6) and the pipeline (L7). See src/worker-main.ts.",
-  );
-  process.exit(1);
-}
+const judgeConstraints = createPipelineFromEnv(process.env);
 
 const db = openDatabase(config.dbPath);
 const worker = startWorker(
