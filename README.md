@@ -58,6 +58,7 @@ LeeTKOB/
 │   ├── contract/              # One file per endpoint: the behaviour the tests copy
 │   └── pa2/                   # Screenshots of the branch protection for PA#2
 ├── eval-own/                  # Team's own 5 eval cases (power-mod: clean, trap, obvious, disguised, injection)
+├── eval-runs/                 # Committed real model eval outputs (predictions, call logs with request ids, reports)
 ├── leetkob-eval/              # The lecturer's dev set and eval.mjs. Never edit it
 ├── src/
 │   ├── server.ts              # Starts the API: opens the database, listens on PORT
@@ -137,10 +138,55 @@ checks are required. Nobody pushes to `main` directly.
 ## Secrets and the model API key
 
 - Every variable is listed, without values, in [`.env.example`](.env.example). Real values live only in `.env` (git-ignored) and in GitHub Actions secrets.
-- The model is not called yet (it arrives in PA#3). When it is, the key never enters the judging sandbox, including its environment variables.
+- The model key never enters the judging sandbox, including its environment variables.
 - **Spending cap: US$0.** Provider: Google Gemini API, **free tier**. The key is created in Google AI Studio on a Google Cloud project with **no billing account linked**, so it cannot be charged. Requests above the free quota are refused (HTTP 429), not billed. If billing is ever enabled, set a budget and a quota cap first, then update this line.
-- Model: set by `LLM_MODEL`, chosen in PA#3 and recorded here. Cost of one lab: _to be measured in PA#3_.
+- Model: `LLM_MODEL=gemini-3.5-flash-lite`. Projected list-price cost of one lab of 80 Accepted submissions: **US\$0.0083** (1 semantic constraint) to **US\$0.0166** (2 semantic constraints); actual free-tier spend is **US\$0**.
 - On the free tier Google may use prompts to improve its products. We send only the lab statement, the constraints, and code with names and student IDs removed (brief §3).
+
+## Constraint checker and evaluation
+
+### Build and run the checker
+
+Build the checker Docker image from the repository root:
+
+```sh
+docker build --file docker/checker/Dockerfile --tag leetkob-checker .
+```
+
+Run offline with `MODEL_OFF=1` and `--network none` (hard rules decide ban-list constraints; semantic constraints fall back to `unsure`, zero network calls):
+
+```sh
+docker run --rm --network none -e MODEL_OFF=1 \
+  -v "$PWD/leetkob-eval:/data:ro" -v "$PWD/out:/out" \
+  leetkob-checker --data /data --output /out/predictions.jsonl
+```
+
+Run locally with the model enabled and a call log (writes `requestId` per call):
+
+```sh
+LLM_API_KEY=<key> LLM_MODEL=gemini-3.5-flash-lite MODEL_OFF=0 MODEL_DELAY_MS=2500 \
+  npx tsx src/checker/cli.ts --data leetkob-eval \
+  --output eval-runs/dev/predictions.jsonl \
+  --call-log eval-runs/dev/call-log.jsonl
+```
+
+Score any prediction file with the lecturer's evaluator (never edited):
+
+```sh
+node leetkob-eval/eval.mjs --data leetkob-eval --predictions eval-runs/dev/predictions.jsonl --json eval-runs/dev/summary.json
+```
+
+### Model choice, eval results, and 80-submission lab cost
+
+- **Chosen model:** `gemini-3.5-flash-lite` via Google AI Studio Free Tier (`responseId` logged as `requestId`). Earlier trials of `gemini-2.5-flash`, `gemini-4-hydrogen`, and `gemini-3.6-flash` hit the free-tier 20 requests/day limit mid-run; `gemini-3.5-flash-lite` completed all 47 dev-set and 5 own-case semantic calls within quota.
+- **Committed results (`eval-runs/`):**
+  - Dev set (`leetkob-eval`, 47 solutions, 102 pairs): **0** wrongful deductions, **97.3% (36/37)** recall, **1.0% (1/102)** unsure rate -> **`PASS`** ([report](eval-runs/dev/eval-report.txt), [call log](eval-runs/dev/call-log.jsonl)).
+  - Own cases (`eval-own`, 5 solutions, 10 pairs, including `trap` and `injection`): **0** wrongful deductions, **100.0% (5/5)** recall, **0.0% (0/10)** unsure rate -> **`PASS`** ([report](eval-runs/own/eval-report.txt), [call log](eval-runs/own/call-log.jsonl)).
+- **Cost arithmetic for one lab of 80 Accepted submissions** (`gemini-3.5-flash-lite` list prices: US\$0.10 / 1M input tokens, US\$0.40 / 1M output tokens):
+  - Across the 46 successful semantic calls on `leetkob-eval`, total usage was **39,185** input tokens (mean **851.85** / call) and **2,149** output tokens (mean **46.72** / call), totalling **US\$0.004778** (**US\$0.00010387** / call).
+  - **1 semantic constraint** (80 calls): `80 × (851.85 × $0.10 + 46.72 × $0.40) / 1,000,000 = 80 × $0.00010387` = **US\$0.0083** (~0.83 cents).
+  - **2 semantic constraints** (160 calls): `160 × $0.00010387` = **US\$0.0166** (~1.66 cents).
+  - Ban-list constraints run deterministically via `src/judge/hard-rules.ts` at **US\$0** and 0 model calls.
 
 ## For the assistant
 
