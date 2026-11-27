@@ -369,3 +369,12 @@ Kept: a work limit for the hard rules (256 KiB of macro expansion summed over ev
 Changed: the review also proposed logging `evidence_mismatch` as a call outcome. Dropped: the call itself succeeded, the reason is already on the verdict, and the `model_calls` CHECK allows only four outcomes.
 Rejected: nothing.
 By hand: (to fill in) review with Loc, who owns these files.
+
+## 2026-11-27 — first real deployment, and moving the VM to Korea Central
+
+Tool: Claude Code (Opus, then Sonnet).
+Asked for: create the settings file on the VM, deploy with the worker, and judge real submissions end to end through the public API.
+Kept: the deployment as written in `deploy/compose.yaml`. On the first VM (East Asia) the sandbox and the hard rules worked (`std::lcm` caught at line 5 with its source line), but every semantic constraint fell back to `unsure` (`model_error`).
+Changed: a direct call to Gemini from the worker container showed HTTP 400 "User location is not supported". Hong Kong is not a supported region, so the cause was the VM, not our code. We moved to a new VM in Korea Central. There the call answers 200, and six solutions of one dev-set problem gave 12 of 12 verdicts equal to the lecturer's labels (the injection case included), with evidence lines. DEPLOYMENT, DECISIONS (decision 6) and the env example now name the new host and region.
+Rejected: a relay VM in a supported region (one more machine for the PA#4 red team to attack), and switching to another free model provider (a new client, a new eval run, and no proof that it accepts Hong Kong either).
+By hand: created the new VM, its DNS name and the settings file with the model key. Left a test lab and its submissions in each VM's database; the old VM has still to be deleted.
