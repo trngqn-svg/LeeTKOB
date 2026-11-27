@@ -358,14 +358,40 @@ function substituteMacroParams(
   return result;
 }
 
+/**
+ * How much work one check may do. The rules run in the worker, outside the sandbox,
+ * on hostile code (PA#4): a macro chain of ten copies per level expands to 10^8
+ * tokens. Past either limit the check stops and gives unsure (rule_error), so the
+ * TA looks at it instead of the worker hanging. Ordinary code stays far below both.
+ */
+interface RuleBudget {
+  /** Characters produced by macro expansion, summed over every use in the source. */
+  expandedChars: number;
+  /** Syntax nodes visited, macro expansions included. */
+  visitedNodes: number;
+}
+
+/** The size of the largest submission (SUBMIT_BODY_LIMIT). */
+export const MAX_EXPANDED_CHARS = 256 * 1024;
+export const MAX_VISITED_NODES = 1_000_000;
+
+class RuleBudgetExceeded extends Error {}
+
+function spendChars(budget: RuleBudget, chars: number): void {
+  budget.expandedChars += chars;
+  if (budget.expandedChars > MAX_EXPANDED_CHARS) throw new RuleBudgetExceeded();
+}
+
 function expandTextMacros(
   text: string,
   macros: Map<string, MacroDef>,
+  budget: RuleBudget,
   depth = 0,
   visited = new Set<string>(),
   defLines = new Set<number>(),
 ): { expanded: string; defLines: number[] } {
   if (depth >= 8) {
+    spendChars(budget, text.length);
     return { expanded: text, defLines: [...defLines] };
   }
   let out = "";
@@ -374,6 +400,7 @@ function expandTextMacros(
     const ch = text[i]!;
     if (ch === '"' || ch === "'") {
       const quote = ch;
+      const literalStart = i;
       out += ch;
       i++;
       while (i < text.length) {
@@ -387,6 +414,7 @@ function expandTextMacros(
         i++;
         if (c === quote) break;
       }
+      spendChars(budget, i - literalStart);
       continue;
     }
     if (/[A-Za-z_]/.test(ch)) {
@@ -411,6 +439,7 @@ function expandTextMacros(
             const inner = expandTextMacros(
               sub,
               macros,
+              budget,
               depth + 1,
               nextVisited,
               defLines,
@@ -426,6 +455,7 @@ function expandTextMacros(
           const inner = expandTextMacros(
             macro.body,
             macros,
+            budget,
             depth + 1,
             nextVisited,
             defLines,
@@ -436,10 +466,12 @@ function expandTextMacros(
         }
       }
       out += ident;
+      spendChars(budget, ident.length);
       i = j;
       continue;
     }
     out += ch;
+    spendChars(budget, 1);
     i++;
   }
   return { expanded: out, defLines: [...defLines] };
@@ -593,6 +625,8 @@ interface AnalysisContext {
   matchedLines: Set<number>;
   /** Extra lines attributed when a violation happens inside an expanded macro. */
   attributionLines: number[] | null;
+  /** Shared by the macro expansions, so every use counts against one limit. */
+  budget: RuleBudget;
 }
 
 function recordLine(ctx: AnalysisContext, oneBasedLine: number): void {
@@ -791,6 +825,7 @@ function expandAndCheckMacroNode(
   const { expanded, defLines } = expandTextMacros(
     sub,
     ctx.macros,
+    ctx.budget,
     1,
     new Set([macro.name]),
     new Set([macro.defLine]),
@@ -828,6 +863,9 @@ function visitNode(
   scope: Scope,
   ctx: AnalysisContext,
 ): void {
+  if (++ctx.budget.visitedNodes > MAX_VISITED_NODES) {
+    throw new RuleBudgetExceeded();
+  }
   if (SKIP_SUBTREE_TYPES.has(node.type)) return;
 
   const line = node.startPosition.row + 1;
@@ -1088,9 +1126,20 @@ export async function checkBanList(
       userClassMembers: new Set(),
       matchedLines,
       attributionLines: null,
+      budget: { expandedChars: 0, visitedNodes: 0 },
     };
     const rootScope = createScope(null);
     visitNode(tree.rootNode, rootScope, ctx);
+  } catch (error) {
+    if (!(error instanceof RuleBudgetExceeded)) throw error;
+    return {
+      constraintCode: constraint.code,
+      verdict: "unsure",
+      decidedBy: "fallback",
+      reason: "rule_error",
+      evidence: [],
+      modelCall: null,
+    };
   } finally {
     tree.delete();
   }

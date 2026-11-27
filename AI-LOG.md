@@ -360,3 +360,12 @@ Kept: converted `eval-runs/dev/eval-report.txt` and `eval-runs/own/eval-report.t
 Changed: nothing in `src/` or `tests/` — the entire Live E2E flow passed on the first run; on Windows `spawn(..., { shell: true })` left child `node` handles open at shutdown, so the background task wrapper was cancelled and child processes cleaned up explicitly afterwards.
 Rejected: committing E2E temp scripts or test databases to the repository.
 By hand: 23120292 ran PRs #26–#29 through CI into `main`, supplied the PR #30 failure link, and approved the format/encoding fix, Live E2E run, and push to `feat/eval-real-run`.
+
+## 2026-11-27 — review fixes: hard-rule limits, prompt tag, worker settings
+
+Tool: Claude Code (Opus).
+Asked for: fixes for what the review of L2–L7 found.
+Kept: a work limit for the hard rules (256 KiB of macro expansion summed over every use, 1,000,000 syntax nodes), past which the check gives `unsure` (`rule_error`). Without it, eight levels of ten copies inside `#if 0` compile fine and expand to 10^8 tokens in the worker. A random tag around the student code in each prompt, so a fake `</student_code>` in a string closes nothing. In compose, the key and the model may be empty (the worker itself refuses to start without them unless `MODEL_OFF=1`), and `MODEL_DELAY_MS` now reaches the worker.
+Changed: the review also proposed logging `evidence_mismatch` as a call outcome. Dropped: the call itself succeeded, the reason is already on the verdict, and the `model_calls` CHECK allows only four outcomes.
+Rejected: nothing.
+By hand: (to fill in) review with Loc, who owns these files.
