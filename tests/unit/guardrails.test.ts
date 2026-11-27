@@ -96,6 +96,7 @@ describe("buildPrompt", () => {
 
     expect(prompt).toMatch(/omit.*line[- ]number|without.*N \|/i);
     expect(prompt).toMatch(/valid|unusual/i);
+    expect(prompt).toMatch(/explicit exceptions/i);
   });
 });
 
