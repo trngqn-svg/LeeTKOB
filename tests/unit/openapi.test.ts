@@ -87,13 +87,15 @@ describe("Swagger / OpenAPI spec (docs/SWAGGER-PLAN.md)", () => {
   it("includes every response status from each contract", () => {
     for (const c of contracts) {
       const op = spec.paths[c.path]?.[c.method];
-      expect(op, `${c.file}: ${c.method.toUpperCase()} ${c.path}`).toBeDefined();
+      expect(
+        op,
+        `${c.file}: ${c.method.toUpperCase()} ${c.path}`,
+      ).toBeDefined();
       const specStatuses = Object.keys(op?.responses ?? {});
       for (const status of c.statuses) {
-        expect(
-          specStatuses,
-          `${c.file} missing status ${status}`,
-        ).toContain(status);
+        expect(specStatuses, `${c.file} missing status ${status}`).toContain(
+          status,
+        );
       }
     }
   });
@@ -101,7 +103,9 @@ describe("Swagger / OpenAPI spec (docs/SWAGGER-PLAN.md)", () => {
   it("serves index.html with no inline scripts and SRI integrity on external assets", () => {
     const html = readFileSync(resolve(SWAGGER_DIR, "index.html"), "utf8");
 
-    const scriptTags = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
+    const scriptTags = [
+      ...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi),
+    ];
     expect(scriptTags.length).toBeGreaterThan(0);
     for (const [, attrs = "", body = ""] of scriptTags) {
       expect(attrs, "every <script> must have src").toMatch(/\bsrc\s*=/i);
