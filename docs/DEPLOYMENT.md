@@ -10,7 +10,7 @@ Why one machine: the PA#3 rubric asks for a public deployment that stays up unti
 | --------------------------- | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
 | Subscription                | Azure for Students                                                                               | The credit has a spending limit, so it cannot run up a bill (verify in the portal)  |
 | Resource group              | `rg-leetkob`, with nothing else in it                                                            | Deleting the group at the end removes everything                                    |
-| Region                      | The nearest region your subscription allows (Southeast Asia or East Asia if offered)             | A student subscription may allow only a few regions. Latency matters little here    |
+| Region                      | **Korea Central.** Not East Asia: the Gemini API refuses calls from Hong Kong (section 7.1)      | The model API only serves some regions. Latency matters little here                 |
 | Image                       | Ubuntu Server 24.04 LTS, x64 (22.04 LTS is also fine)                                            | Docker supports it, and it uses cgroup v2 for the memory and process limits         |
 | Size for PA#3               | 2 vCPU and 4 GiB, for example `Standard_B2s` or the cheapest equivalent your subscription offers | Enough for one or two sandbox runs at a time. It is burstable, see "Why this size"  |
 | Size for the PA#5 load test | 4 vCPU and 8 GiB, not burstable, for example `Standard_D4s_v5`, for a few days only              | 80 submissions at once need steady CPU. Resizing restarts the VM                    |
@@ -98,7 +98,9 @@ docker run --rm --memory 64m alpine cat /sys/fs/cgroup/memory.max
 
 ## 7.1 Deploy and update
 
-The public name is `leetkob-hcmus.eastasia.cloudapp.azure.com` (the DNS label of the public IP). Ports 80 and 443 are open in the network security group; Caddy gets the certificate from Let's Encrypt by itself on the first start. On 2026-11-26 the stack was tried on the VM under another project name: `/health` answered 200 over HTTPS from the internet, plain HTTP redirected to HTTPS, and port 3000 could not be reached from outside. The trial was then removed with its volumes.
+The public name is `leetkob-hcmus.koreacentral.cloudapp.azure.com` (the DNS label of the public IP). Ports 80 and 443 are open in the network security group; Caddy gets the certificate from Let's Encrypt by itself on the first start. On 2026-11-26 the stack was tried on a first VM under another project name: `/health` answered 200 over HTTPS from the internet, plain HTTP redirected to HTTPS, and port 3000 could not be reached from outside. The trial was then removed with its volumes.
+
+**The VM moved on 2026-11-27.** The first VM was in East Asia (Hong Kong). With the worker running there, the first real submission got `unsure` with reason `model_error` on every semantic constraint, because Gemini answered HTTP 400 `FAILED_PRECONDITION: User location is not supported for the API use.` Hong Kong is not in Google's list of supported regions (Singapore, Japan, South Korea, Vietnam, India and the United States are). The VM was recreated in Korea Central (Ubuntu 24.04, 2 vCPU, about 3.8 GiB of memory). There, a call to the model answered 200, and six dev-set solutions of one problem were judged `accepted` with all 12 constraint verdicts equal to the lecturer's labels. A move to another region needs the same check: call the model from the new VM before deploying.
 
 First time, from the clone of the repository on the VM:
 
@@ -112,7 +114,7 @@ sudo docker build --tag leetkob-sandbox docker/sandbox
 sudo docker compose --env-file /etc/leetkob/leetkob.env --file deploy/compose.yaml up --detach --build
 ```
 
-The worker is in the Compose profile `worker` and is not started yet: `src/worker-main.ts` refuses to start until it is wired to the sandbox and the pipeline. Once it is, add `--profile worker` to the last command.
+The worker is in the Compose profile `worker`, so add `--profile worker` to the last command (before `up`) to start it. It stops at start with a message if `LLM_API_KEY` or `LLM_MODEL` is empty and `MODEL_OFF` is not `1`.
 
 To update: `git pull`, rebuild the sandbox image if `docker/sandbox/` changed, and run the last command again. The `data` volume keeps the database; the API applies new migrations and resets the test accounts' password to `SEED_PASSWORD` when it starts.
 
