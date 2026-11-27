@@ -120,6 +120,8 @@ To update: `git pull`, rebuild the sandbox image if `docker/sandbox/` changed, a
 
 To look: `sudo docker compose --file deploy/compose.yaml ps`, and `logs --tail 100 api` (or `caddy`, `worker`).
 
+For the demo, Caddy also serves a static Swagger UI page at `/docs/` from `docs/swagger/` (hand-written OpenAPI 3.0.3 spec matching `docs/contract/`, with no changes to the Node API).
+
 ## 8. What to verify before relying on this
 
 - Is the Azure for Students credit active for the `@student.hcmus.edu.vn` account?
