@@ -378,3 +378,12 @@ Kept: the deployment as written in `deploy/compose.yaml`. On the first VM (East 
 Changed: a direct call to Gemini from the worker container showed HTTP 400 "User location is not supported". Hong Kong is not a supported region, so the cause was the VM, not our code. We moved to a new VM in Korea Central. There the call answers 200, and six solutions of one dev-set problem gave 12 of 12 verdicts equal to the lecturer's labels (the injection case included), with evidence lines. DEPLOYMENT, DECISIONS (decision 6) and the env example now name the new host and region.
 Rejected: a relay VM in a supported region (one more machine for the PA#4 red team to attack), and switching to another free model provider (a new client, a new eval run, and no proof that it accepts Hong Kong either).
 By hand: created the new VM, its DNS name and the settings file with the model key. Left a test lab and its submissions in each VM's database; the old VM has still to be deleted.
+
+## 2026-11-27 — Q7 attacks on the VM and the recovery steps (Q8)
+
+Tool: Claude Code (Sonnet).
+Asked for: run the nine sandbox attacks on the deployed VM (Q7), and write the recovery steps of Q8 in `docs/DEPLOYMENT.md`, section 7.2.
+Kept: all nine attacks stop on the Korea Central VM (9 of 9, no container left over). They ran from a container of the deployed app image with the VM's Docker socket, because the host has no Node.js by design. Section 7.2 holds commands run on the VM that day: restart of the worker, the logs, a database backup with `.backup` while the stack runs, and a restore of that backup (api and worker stopped, the old `-wal` and `-shm` files removed), after which `/health` answered 200 within about 15 seconds.
+Changed: the requeue of a `failed` submission was tried on a copy of the database only, and a reboot was not tried; section 7.2 says so for both. It also says the team shares one SSH key, which differs from section 5.
+Rejected: nothing.
+By hand: (to fill in) read section 7.2 and run one step yourself, for example the backup.

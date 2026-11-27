@@ -120,6 +120,95 @@ To update: `git pull`, rebuild the sandbox image if `docker/sandbox/` changed, a
 
 To look: `sudo docker compose --file deploy/compose.yaml ps`, and `logs --tail 100 api` (or `caddy`, `worker`).
 
+## 7.2 Recovery: when something is wrong
+
+Written for a teammate who has to fix the deployment alone. Every command below was run on the Korea Central VM on 2026-11-27, except the reboot (step 4) and the requeue (step 6, tried on a copy of the database only). The deployment holds only test data until the PA#4 red team arrives, so a step that takes it down for a minute costs nothing yet. Once students or graders have real submissions in it, take a backup (step 7) before any step that changes the database.
+
+**Log in.** The team uses one SSH key for the user `azureuser` (section 5 planned one key per teammate). Then, on the VM, in the clone:
+
+```bash
+cd ~/LeeTKOB
+# A short name for the Compose command used below. Run it once per login.
+dc() { sudo docker compose --env-file /etc/leetkob/leetkob.env --file deploy/compose.yaml --profile worker "$@"; }
+```
+
+**1. Is it down, and which part?**
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" https://leetkob-hcmus.koreacentral.cloudapp.azure.com/health   # 200 is fine
+dc ps --format "table {{.Service}}\t{{.Status}}"   # api (healthy), caddy and worker should be Up
+```
+
+If the curl does not answer at all, the VM is off or the ports are closed: look at the VM in the Azure portal (it must be "Running"; start it if not) and at the network security group (ports 80 and 443 open). If it answers but not with 200, read the logs.
+
+**2. Read the logs.**
+
+```bash
+dc logs --no-color --tail 100 api
+dc logs --no-color --tail 100 worker    # a healthy start prints: worker ... started on /data/leetkob.db
+dc logs --no-color --tail 100 caddy     # certificates and HTTPS
+```
+
+The worker stops at start, with a message, if `LLM_API_KEY` or `LLM_MODEL` is empty and `MODEL_OFF` is not `1`. A semantic constraint with the reason `model_error` in the review queue means the model call failed: check the key, the quota (HTTP 429), and that Gemini still answers from this VM (the region check of section 7.1).
+
+**3. Restart.** The database lives in the `data` volume, so a restart loses nothing.
+
+```bash
+dc restart worker                 # one service: api, caddy or worker
+dc up --detach --build            # everything, rebuilding the app image (also the way to redeploy after git pull)
+```
+
+A restart of the worker waits for the job in hand. A job it drops is claimed again after its 60 second lease, so no submission is lost.
+
+**4. After the VM reboots.** Docker starts by itself (`systemctl is-enabled docker` says `enabled`) and every service is set to `restart: unless-stopped`, so they should come back without a command. This has not been tried by rebooting. After a reboot, run step 1; if Docker did not start, `sudo systemctl start docker`, then `dc up --detach`.
+
+**5. Redeploy a new version.**
+
+```bash
+git pull
+sudo docker build --tag leetkob-sandbox docker/sandbox   # only if docker/sandbox/ changed
+dc up --detach --build
+```
+
+**6. A submission is stuck.**
+
+- `queued` for a long time: the worker is down or backing off. Run step 1, then step 2. After the sandbox or the model fails, the worker retries with a growing pause of up to 60 seconds.
+- `running` for more than the lease (60 seconds) with no worker alive: the next claim puts it back in the queue by itself.
+- `failed`: the leases ran out three times, or the worker hit an error that is not the student's. It stays `failed`, and it blocks Publish for that lab. There is no script to requeue it yet, so after fixing the cause (step 2) put it back by hand:
+
+```bash
+V=/var/lib/docker/volumes/leetkob_data/_data
+sudo sqlite3 $V/leetkob.db "select id, attempts, created_at from submissions where status='failed'"
+sudo sqlite3 $V/leetkob.db "UPDATE submissions SET status='queued', attempts=0, locked_by=NULL, lease_until=NULL, started_at=NULL, finished_at=NULL WHERE id='sub-...' AND status='failed'"
+```
+
+**7. Back up and restore the database.** A backup is one file, and it can be taken while the stack runs (SQLite's own `.backup` is safe with the worker writing).
+
+```bash
+V=/var/lib/docker/volumes/leetkob_data/_data
+mkdir -p ~/backups
+sudo sqlite3 $V/leetkob.db ".backup $HOME/backups/leetkob-$(date +%Y%m%d-%H%M).db"
+sqlite3 ~/backups/leetkob-YYYYMMDD-HHMM.db "PRAGMA integrity_check"    # must print: ok
+```
+
+Take one before every redeploy and before the PA#4 and PA#5 dates. Copy the latest one off the VM now and then (`scp`), because a backup on the same disk does not survive the disk. To restore a backup (this replaces everything in the database):
+
+```bash
+dc stop api worker
+sudo rm -f $V/leetkob.db-wal $V/leetkob.db-shm      # leftovers of the old file must go
+sudo cp ~/backups/leetkob-YYYYMMDD-HHMM.db $V/leetkob.db
+sudo chown 1000:1000 $V/leetkob.db                  # the node user of the containers
+dc start api worker
+```
+
+Then run step 1. On 2026-11-27 this restored a six-submission backup, and `/health` answered 200 about 15 seconds after the start.
+
+**8. HTTPS does not work.** Caddy gets and renews the certificate by itself. Check `dc logs caddy` for the reason: the DNS name must point at the VM's public IP (`getent hosts leetkob-hcmus.koreacentral.cloudapp.azure.com`), and ports 80 and 443 must be open to the internet, because Let's Encrypt checks over them. The first start of a new VM takes a few seconds before the certificate is there.
+
+**9. The disk or the memory is full.** Look with `df -h /` and `free -m`. For old images and stopped containers, `sudo docker system prune` frees space and keeps the volumes. The VM has about 3.8 GiB of memory and no swap, which is enough for one sandbox run at a time.
+
+**10. Last resort: a new VM.** Create it in a region the Gemini API serves (Korea Central works; East Asia does not), with the same size, ports 80 and 443 open, and a DNS name label. Install Docker and Compose, `git clone` the repository, create `/etc/leetkob/leetkob.env` from `deploy/leetkob.env.example` (new `DOMAIN` and `DOCKER_GID`, the same `SEED_PASSWORD` and key), build the sandbox image, and run `dc up --detach --build` as in section 7.1. To keep the database, copy a backup into the `data` volume as in step 7. Call the model from the new VM before you rely on it.
+
 ## 8. What to verify before relying on this
 
 - Is the Azure for Students credit active for the `@student.hcmus.edu.vn` account?
