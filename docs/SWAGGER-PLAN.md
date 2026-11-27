@@ -1,6 +1,6 @@
 # Plan: an API page (Swagger UI) for the demo
 
-Status: plan, not built. Written on 27 November for whoever builds it (the plan is meant to be handed to a coding assistant). It is optional work: it earns no rubric points by itself, but it makes the lecturer's walk-through and the video easier. Time-box it to about three hours, and drop it if the code freeze (Saturday 28, 18:00) is near and anything required is open.
+Status: built on 27 November (`docs/swagger/`, `tests/unit/openapi.test.ts`, and the `/docs/` block in `deploy/Caddyfile`); not yet seen in a browser on the deployment. Written on 27 November for whoever builds it (the plan is meant to be handed to a coding assistant). It is optional work: it earns no rubric points by itself, but it makes the lecturer's walk-through and the video easier. Time-box it to about three hours, and drop it if the code freeze (Saturday 28, 18:00) is near and anything required is open.
 
 ## 1. Goal
 
@@ -16,12 +16,12 @@ One web page on the deployment, at `https://leetkob-hcmus.koreacentral.cloudapp.
 
 ## 3. Files to add
 
-| File                         | What it is                                                                                                                                  |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `docs/swagger/openapi.json`  | OpenAPI 3.0.3, JSON (no YAML parser needed, and Prettier formats it)                                                                        |
-| `docs/swagger/index.html`    | The page: loads Swagger UI from cdnjs (exact version, `integrity` attribute), no inline script                                              |
-| `docs/swagger/init.js`       | Starts Swagger UI on `openapi.json` (a separate file, so the CSP needs no `unsafe-inline` for scripts)                                      |
-| `tests/unit/openapi.test.ts` | Checks the spec against `docs/contract/` (see section 5)                                                                                    |
+| File                         | What it is                                                                                             |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `docs/swagger/openapi.json`  | OpenAPI 3.0.3, JSON (no YAML parser needed, and Prettier formats it)                                   |
+| `docs/swagger/index.html`    | The page: loads Swagger UI from cdnjs (exact version, `integrity` attribute), no inline script         |
+| `docs/swagger/init.js`       | Starts Swagger UI on `openapi.json` (a separate file, so the CSP needs no `unsafe-inline` for scripts) |
+| `tests/unit/openapi.test.ts` | Checks the spec against `docs/contract/` (see section 5)                                               |
 
 Changes to existing files: `deploy/Caddyfile` and `deploy/compose.yaml` (serve the folder), `README.md` (the folder-structure tree, as `AGENTS.md` requires, one line per new file), `docs/DEPLOYMENT.md` (one paragraph), `AI-LOG.md` (an entry).
 

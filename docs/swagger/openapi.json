@@ -284,7 +284,9 @@
           "415": {
             "$ref": "#/components/responses/Problem415UnsupportedMediaType"
           },
-          "422": { "$ref": "#/components/responses/Problem422ValidationFailed" },
+          "422": {
+            "$ref": "#/components/responses/Problem422ValidationFailed"
+          },
           "500": { "$ref": "#/components/responses/Problem500Internal" }
         }
       }
@@ -480,7 +482,9 @@
           "415": {
             "$ref": "#/components/responses/Problem415UnsupportedMediaType"
           },
-          "422": { "$ref": "#/components/responses/Problem422ValidationFailed" },
+          "422": {
+            "$ref": "#/components/responses/Problem422ValidationFailed"
+          },
           "500": { "$ref": "#/components/responses/Problem500Internal" }
         }
       }
@@ -683,7 +687,9 @@
           "415": {
             "$ref": "#/components/responses/Problem415UnsupportedMediaType"
           },
-          "422": { "$ref": "#/components/responses/Problem422ValidationFailed" },
+          "422": {
+            "$ref": "#/components/responses/Problem422ValidationFailed"
+          },
           "429": {
             "description": "Pending or per-minute limit exceeded (`https://leetkob.example/problems/too-many-submissions` — `Too many submissions`)",
             "content": {
@@ -729,7 +735,9 @@
                   "status": "judged",
                   "judgeResult": "accepted",
                   "judgeDetail": {
-                    "tests": [{ "position": 1, "result": "passed", "timeMs": 4 }]
+                    "tests": [
+                      { "position": 1, "result": "passed", "timeMs": 4 }
+                    ]
                   },
                   "sourceCode": "#include <iostream>\n...",
                   "createdAt": "2026-11-26T09:15:00.000Z",
@@ -1014,7 +1022,9 @@
           "415": {
             "$ref": "#/components/responses/Problem415UnsupportedMediaType"
           },
-          "422": { "$ref": "#/components/responses/Problem422ValidationFailed" },
+          "422": {
+            "$ref": "#/components/responses/Problem422ValidationFailed"
+          },
           "500": { "$ref": "#/components/responses/Problem500Internal" }
         }
       }
