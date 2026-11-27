@@ -332,6 +332,70 @@ describe("checkBanList — plain and disguised violations", () => {
   });
 });
 
+// The hard rules run in the worker, outside the sandbox, on hostile code (PA#4 red
+// team). An input built to be expensive must end as unsure, quickly, not hang the worker.
+describe("checkBanList — hostile input stays bounded", () => {
+  const RULE_ERROR = {
+    constraintCode: "C1",
+    verdict: "unsure",
+    decidedBy: "fallback",
+    reason: "rule_error",
+    evidence: [],
+    modelCall: null,
+  };
+
+  // Eight levels of ten copies each: one use expands to 10^8 tokens. Inside `#if 0`
+  // the compiler never sees it, so the submission still compiles and is Accepted.
+  function macroBomb(): string {
+    const lines = ["#include <cstdio>", "#define A0 x"];
+    for (let level = 1; level <= 8; level++) {
+      lines.push(
+        `#define A${level} ${new Array<string>(10).fill(`A${level - 1}`).join(" ")}`,
+      );
+    }
+    lines.push("int main() {", "#if 0", "  A8;", "#endif", "  return 0;", "}");
+    return lines.join("\n");
+  }
+
+  it("gives unsure (rule_error) for a macro that expands without bound", async () => {
+    const started = Date.now();
+    const r = await checkBanList(macroBomb(), ban("Do not use `for`."));
+    expect(r).toEqual(RULE_ERROR);
+    expect(Date.now() - started).toBeLessThan(2000);
+  }, 10_000);
+
+  it("gives unsure (rule_error) when many small uses add up past the limit", async () => {
+    const lines = [
+      "#define A0 x",
+      `#define A1 ${new Array<string>(10).fill("A0").join(" ")}`,
+      `#define A2 ${new Array<string>(10).fill("A1").join(" ")}`,
+      `#define A3 ${new Array<string>(10).fill("A2").join(" ")}`,
+      "int main() {",
+      "#if 0",
+      ...new Array<string>(1000).fill("  A3;"),
+      "#endif",
+      "  return 0;",
+      "}",
+    ];
+    const r = await checkBanList(lines.join("\n"), ban("Do not use `for`."));
+    expect(r).toEqual(RULE_ERROR);
+  }, 10_000);
+
+  it("still expands an ordinary macro and finds the banned name in it", async () => {
+    const code = [
+      "#define REP(i, n) for (int i = 0; i < (n); i++)",
+      "int main() {",
+      "  int s = 0;",
+      "  REP(i, 3) s += i;",
+      "  return s;",
+      "}",
+    ].join("\n");
+    const r = await checkBanList(code, ban("Do not use `for`."));
+    expect(r.verdict).toBe("violation");
+    expect(r.decidedBy).toBe("hard_rule");
+  });
+});
+
 // Dynamic sweep across every ban-list (solution, constraint) pair of the dev set:
 // 0 wrongful deductions and 100% recall with exact source-line evidence.
 describe("checkBanList — dev set ban-list pairs (L2)", () => {
