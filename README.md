@@ -35,7 +35,8 @@ LeeTKOB/
 ├── AI-LOG.md                  # Every use of an AI tool: asked, kept, changed, rejected
 ├── CLAUDE.md                  # Imports AGENTS.md for Claude Code
 ├── PA2.md                     # What was handed in for PA#2
-├── SELF_ASSESSMENT_REPORT.md  # The team's self-assessment of PA#2
+├── PA3.md                     # What is handed in for PA#3: URL, accounts, video, CI, eval runs
+├── SELF_ASSESSMENT_REPORT.md  # The team's self-assessment of the current PA (PA#3; git history keeps PA#2)
 ├── eslint.config.js           # ESLint 9 and typescript-eslint settings
 ├── package.json               # Scripts and dependencies (package-lock.json pins them)
 ├── tsconfig.json              # TypeScript strict settings for src/ and tests/
@@ -53,10 +54,15 @@ LeeTKOB/
 │   ├── DEPLOYMENT.md          # The Azure VM and how the app is deployed on it
 │   ├── PERMISSIONS.md         # What the assistant may do without asking
 │   ├── RECONSIDERATION.md     # The decisions reviewed again, with the planned spikes
+│   ├── SWAGGER-PLAN.md        # Plan for a Swagger UI page of the API, for the demo
 │   ├── TASKS.md               # Who does what for PA#3, and the timeline
 │   ├── c4/                    # C4 diagrams: system context (C1) and containers (C2)
 │   ├── contract/              # One file per endpoint: the behaviour the tests copy
-│   └── pa2/                   # Screenshots of the branch protection for PA#2
+│   ├── pa2/                   # Screenshots of the branch protection for PA#2
+│   └── swagger/               # Static Swagger UI page and OpenAPI 3.0.3 spec for the demo
+│       ├── index.html         # Swagger UI page (pinned cdnjs assets with SRI, no inline script)
+│       ├── init.js            # Starts Swagger UI on openapi.json
+│       └── openapi.json       # Hand-written OpenAPI 3.0.3 spec matching docs/contract/
 ├── eval-own/                  # Team's own 5 eval cases (power-mod: clean, trap, obvious, disguised, injection)
 ├── eval-runs/                 # Committed real model eval outputs (predictions, call logs with request ids, reports)
 ├── leetkob-eval/              # The lecturer's dev set and eval.mjs. Never edit it

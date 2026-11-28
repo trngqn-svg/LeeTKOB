@@ -6,4 +6,9 @@ export default tseslint.config(
   { ignores: ["node_modules", "coverage", "leetkob-eval/"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  // The Swagger UI page (docs/swagger/) runs in the browser, where `window` exists.
+  {
+    files: ["docs/swagger/**/*.js"],
+    languageOptions: { globals: { window: "readonly" } },
+  },
 );

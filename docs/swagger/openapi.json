@@ -1,0 +1,1220 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "LeeTKOB API",
+    "version": "0.2.0",
+    "description": "Constraint review API for C++ lab submissions (CSC13114).\n\n**Notice:** The seeded test accounts (`ta1@leetkob.example`, `student1@leetkob.example`, etc.) hold no real student data. Type the password from `PA3.md` when logging in.\n\n### Demo in 8 steps\n1. `POST /auth/login` as `ta1@leetkob.example`, copy `token`, and click **Authorize**.\n2. `POST /classes/class-a/labs`: create the lab (example uses `power-mod`), copy its `id`.\n3. `POST /auth/login` as `student1@leetkob.example`, then click **Authorize** again with the student's token.\n4. `POST /labs/{labId}/submissions`: submit a solution, copy `submissionId`.\n5. `GET /submissions/{submissionId}` until `status` is `judged`.\n6. Log in as `ta1@leetkob.example` again and Authorize, then call `GET /labs/{labId}/review-queue`.\n7. `POST /review-items/{itemId}/decision` for each pending review item.\n8. `POST /labs/{labId}/publish` (with an `Idempotency-Key` header)."
+  },
+  "servers": [{ "url": "/" }],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "Problem": {
+        "type": "object",
+        "required": ["type", "title", "status", "instance"],
+        "properties": {
+          "type": { "type": "string", "format": "uri" },
+          "title": { "type": "string" },
+          "status": { "type": "integer" },
+          "detail": { "type": "string" },
+          "instance": { "type": "string" }
+        },
+        "additionalProperties": true
+      },
+      "EvidenceLine": {
+        "type": "object",
+        "required": ["line", "text"],
+        "additionalProperties": false,
+        "properties": {
+          "line": { "type": "integer", "minimum": 1 },
+          "text": { "type": "string" }
+        }
+      },
+      "LabConstraint": {
+        "type": "object",
+        "required": ["code", "text", "kind", "bannedNames", "deduction"],
+        "properties": {
+          "code": { "type": "string", "example": "C1" },
+          "text": { "type": "string" },
+          "kind": { "type": "string", "enum": ["ban_list", "semantic"] },
+          "bannedNames": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "deduction": { "type": "integer", "minimum": 0, "maximum": 10 }
+        }
+      },
+      "ReviewItem": {
+        "type": "object",
+        "required": [
+          "id",
+          "reason",
+          "status",
+          "finalVerdict",
+          "finalEvidence",
+          "note",
+          "reviewedBy",
+          "reviewedAt"
+        ],
+        "properties": {
+          "id": { "type": "integer", "minimum": 1 },
+          "reason": {
+            "type": "string",
+            "enum": ["violation", "unsure", "sample"]
+          },
+          "status": { "type": "string", "enum": ["pending", "reviewed"] },
+          "finalVerdict": {
+            "type": "string",
+            "nullable": true,
+            "enum": ["pass", "violation", null]
+          },
+          "finalEvidence": {
+            "type": "array",
+            "nullable": true,
+            "items": { "$ref": "#/components/schemas/EvidenceLine" }
+          },
+          "note": { "type": "string", "nullable": true },
+          "reviewedBy": { "type": "string", "nullable": true },
+          "reviewedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      }
+    },
+    "responses": {
+      "Problem400InvalidQuery": {
+        "description": "Invalid query parameter (`https://leetkob.example/problems/invalid-query` — `Query parameter is invalid`)",
+        "content": {
+          "application/problem+json": {
+            "schema": { "$ref": "#/components/schemas/Problem" },
+            "example": {
+              "type": "https://leetkob.example/problems/invalid-query",
+              "title": "Query parameter is invalid",
+              "status": 400,
+              "instance": "/labs/lab-7f3c2a",
+              "parameter": "include"
+            }
+          }
+        }
+      },
+      "Problem401Unauthenticated": {
+        "description": "Missing, unknown, or expired Bearer token (`https://leetkob.example/problems/unauthenticated` — `Authentication required`)",
+        "content": {
+          "application/problem+json": {
+            "schema": { "$ref": "#/components/schemas/Problem" },
+            "example": {
+              "type": "https://leetkob.example/problems/unauthenticated",
+              "title": "Authentication required",
+              "status": 401,
+              "instance": "/classes/class-a/labs"
+            }
+          }
+        }
+      },
+      "Problem403RoleNotAllowed": {
+        "description": "Caller role may not call this endpoint (`https://leetkob.example/problems/role-not-allowed` — `Your role may not do this`)",
+        "content": {
+          "application/problem+json": {
+            "schema": { "$ref": "#/components/schemas/Problem" },
+            "example": {
+              "type": "https://leetkob.example/problems/role-not-allowed",
+              "title": "Your role may not do this",
+              "status": 403,
+              "instance": "/classes/class-a/labs",
+              "requiredRole": "ta"
+            }
+          }
+        }
+      },
+      "Problem415UnsupportedMediaType": {
+        "description": "Content-Type is not application/json (`https://leetkob.example/problems/unsupported-media-type` — `Unsupported media type`)",
+        "content": {
+          "application/problem+json": {
+            "schema": { "$ref": "#/components/schemas/Problem" },
+            "example": {
+              "type": "https://leetkob.example/problems/unsupported-media-type",
+              "title": "Unsupported media type",
+              "status": 415,
+              "instance": "/auth/login"
+            }
+          }
+        }
+      },
+      "Problem422ValidationFailed": {
+        "description": "Missing body, invalid JSON, unknown field, or field rule violation (`https://leetkob.example/problems/validation-failed` — `Request body is invalid`)",
+        "content": {
+          "application/problem+json": {
+            "schema": { "$ref": "#/components/schemas/Problem" },
+            "example": {
+              "type": "https://leetkob.example/problems/validation-failed",
+              "title": "Request body is invalid",
+              "status": 422,
+              "instance": "/auth/login",
+              "errors": [{ "pointer": "/email", "message": "Required." }]
+            }
+          }
+        }
+      },
+      "Problem500Internal": {
+        "description": "Unexpected server error (`https://leetkob.example/problems/internal` — `Internal server error`)",
+        "content": {
+          "application/problem+json": {
+            "schema": { "$ref": "#/components/schemas/Problem" },
+            "example": {
+              "type": "https://leetkob.example/problems/internal",
+              "title": "Internal server error",
+              "status": 500,
+              "instance": "/"
+            }
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Liveness probe",
+        "description": "Who may call it: Anyone (no authentication).",
+        "responses": {
+          "200": {
+            "description": "Service is alive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["status"],
+                  "properties": {
+                    "status": { "type": "string", "example": "ok" }
+                  }
+                },
+                "example": { "status": "ok" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "Exchange email and password for a Bearer token",
+        "description": "Who may call it: Anyone. Needs no token. Seeded accounts hold no real data.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "additionalProperties": false,
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 254,
+                    "description": "3-254 characters and contains `@`. Case-insensitive."
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "description": "1-128 characters. Compared as given."
+                  }
+                }
+              },
+              "examples": {
+                "ta1": {
+                  "summary": "Log in as TA1",
+                  "value": {
+                    "email": "ta1@leetkob.example",
+                    "password": "<the password of PA3.md>"
+                  }
+                },
+                "student1": {
+                  "summary": "Log in as Student1",
+                  "value": {
+                    "email": "student1@leetkob.example",
+                    "password": "<the password of PA3.md>"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Credentials accepted; returns a 24-hour Bearer token",
+            "content": {
+              "application/json": {
+                "example": {
+                  "token": "3q2-7wPZ...43 characters",
+                  "tokenType": "Bearer",
+                  "expiresAt": "2026-11-26T09:00:00.000Z",
+                  "user": {
+                    "id": "u-ta-1",
+                    "email": "ta1@leetkob.example",
+                    "displayName": "TA One",
+                    "role": "ta"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials (`https://leetkob.example/problems/invalid-credentials` — `Email or password is wrong`)",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Problem" },
+                "example": {
+                  "type": "https://leetkob.example/problems/invalid-credentials",
+                  "title": "Email or password is wrong",
+                  "status": 401,
+                  "instance": "/auth/login"
+                }
+              }
+            }
+          },
+          "415": {
+            "$ref": "#/components/responses/Problem415UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422ValidationFailed"
+          },
+          "500": { "$ref": "#/components/responses/Problem500Internal" }
+        }
+      }
+    },
+    "/classes/{classId}/labs": {
+      "post": {
+        "summary": "Create a lab in a class",
+        "description": "Who may call it: `ta` assigned to `classId` only. A TA of another class gets `class-not-found` (404). `student` or `admin` gets `role-not-allowed` (403).",
+        "security": [{ "bearer": [] }],
+        "parameters": [
+          {
+            "name": "classId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "example": "class-a",
+            "description": "Opaque class id."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["title", "statementMd", "tests", "constraints"],
+                "additionalProperties": false,
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "statementMd": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100000
+                  },
+                  "deadline": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "default": null,
+                    "description": "Optional ISO 8601 timestamp with timezone, in the future."
+                  },
+                  "timeLimitMs": {
+                    "type": "integer",
+                    "minimum": 1000,
+                    "maximum": 5000,
+                    "default": 1000
+                  },
+                  "memoryLimitMb": {
+                    "type": "integer",
+                    "minimum": 64,
+                    "maximum": 512,
+                    "default": 256
+                  },
+                  "tests": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 50,
+                    "items": {
+                      "type": "object",
+                      "required": ["input", "expectedOutput"],
+                      "additionalProperties": false,
+                      "properties": {
+                        "input": { "type": "string" },
+                        "expectedOutput": { "type": "string" }
+                      }
+                    }
+                  },
+                  "constraints": {
+                    "type": "array",
+                    "minItems": 0,
+                    "maxItems": 20,
+                    "items": {
+                      "type": "object",
+                      "required": ["text", "deduction"],
+                      "additionalProperties": false,
+                      "properties": {
+                        "text": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 2000
+                        },
+                        "deduction": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 10
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "example": {
+                "title": "Modular Exponentiation",
+                "statementMd": "# Modular Exponentiation\n\nGiven $q$ queries, each with three integers $a$, $b$, $m$ ($0 \\le a, b \\le 10^9$, $1 \\le m \\le 10^9$), print $a^b \\bmod m$ on its own line.\n\nAssume $0^0 = 1$.",
+                "deadline": null,
+                "timeLimitMs": 1000,
+                "memoryLimitMb": 256,
+                "tests": [
+                  {
+                    "input": "3\n2 10 1000\n3 4 100\n5 2 13\n",
+                    "expectedOutput": "24\n81\n12\n"
+                  }
+                ],
+                "constraints": [
+                  {
+                    "text": "Do not call a library power function: `std::pow`, `pow`, `powf`, `powl`.",
+                    "deduction": 3
+                  },
+                  {
+                    "text": "Compute each power with binary exponentiation (exponentiation by squaring) you wrote yourself, iterative or recursive, so each query runs in O(log b) steps. Repeated multiplication in O(b) steps or calling a library power function does not satisfy this constraint.",
+                    "deduction": 4
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Lab created",
+            "content": {
+              "application/json": {
+                "example": {
+                  "id": "lab-7f3c2a",
+                  "classId": "class-a",
+                  "title": "Modular Exponentiation",
+                  "status": "open",
+                  "deadline": null,
+                  "timeLimitMs": 1000,
+                  "memoryLimitMb": 256,
+                  "testCount": 1,
+                  "constraints": [
+                    {
+                      "code": "C1",
+                      "text": "Do not call a library power function: `std::pow`, `pow`, `powf`, `powl`.",
+                      "kind": "ban_list",
+                      "bannedNames": ["std::pow", "pow", "powf", "powl"],
+                      "deduction": 3
+                    },
+                    {
+                      "code": "C2",
+                      "text": "Compute each power with binary exponentiation (exponentiation by squaring) you wrote yourself...",
+                      "kind": "semantic",
+                      "bannedNames": [],
+                      "deduction": 4
+                    }
+                  ],
+                  "createdBy": "u-ta-1",
+                  "createdAt": "2026-11-26T09:00:00.000Z"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403RoleNotAllowed"
+          },
+          "404": {
+            "description": "Class not found or TA not assigned (`https://leetkob.example/problems/class-not-found` — `Class not found`)",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Problem" },
+                "example": {
+                  "type": "https://leetkob.example/problems/class-not-found",
+                  "title": "Class not found",
+                  "status": 404,
+                  "instance": "/classes/class-a/labs"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body exceeds 8 MiB (`https://leetkob.example/problems/payload-too-large` — `Request body is too large`)",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Problem" },
+                "example": {
+                  "type": "https://leetkob.example/problems/payload-too-large",
+                  "title": "Request body is too large",
+                  "status": 413,
+                  "instance": "/classes/class-a/labs",
+                  "limitBytes": 8388608
+                }
+              }
+            }
+          },
+          "415": {
+            "$ref": "#/components/responses/Problem415UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422ValidationFailed"
+          },
+          "500": { "$ref": "#/components/responses/Problem500Internal" }
+        }
+      }
+    },
+    "/labs/{labId}": {
+      "get": {
+        "summary": "Read one lab",
+        "description": "Who may call it: `ta` or `student` of the lab's class. Only a `ta` may send `?include=tests` (a student gets `role-not-allowed`). Non-members get `lab-not-found` (404); `admin` gets `role-not-allowed` (403).",
+        "security": [{ "bearer": [] }],
+        "parameters": [
+          {
+            "name": "labId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "include",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "enum": ["tests"] },
+            "description": "Optional. Only `tests` is allowed (TA only)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lab details (includes `tests` only for a TA with `?include=tests`)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "id": "lab-7f3c2a",
+                  "classId": "class-a",
+                  "title": "Modular Exponentiation",
+                  "statementMd": "# Modular Exponentiation\n...",
+                  "status": "open",
+                  "deadline": null,
+                  "publishedAt": null,
+                  "timeLimitMs": 1000,
+                  "memoryLimitMb": 256,
+                  "constraints": [
+                    {
+                      "code": "C1",
+                      "text": "Do not call a library power function: `std::pow`, `pow`, `powf`, `powl`.",
+                      "kind": "ban_list",
+                      "bannedNames": ["std::pow", "pow", "powf", "powl"],
+                      "deduction": 3
+                    }
+                  ],
+                  "createdBy": "u-ta-1",
+                  "createdAt": "2026-11-26T09:00:00.000Z",
+                  "testCount": 1,
+                  "tests": [
+                    {
+                      "position": 1,
+                      "input": "3\n2 10 1000\n3 4 100\n5 2 13\n",
+                      "expectedOutput": "24\n81\n12\n"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Problem400InvalidQuery" },
+          "401": {
+            "$ref": "#/components/responses/Problem401Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403RoleNotAllowed"
+          },
+          "404": {
+            "description": "Lab not found or caller is not in the lab's class (`https://leetkob.example/problems/lab-not-found` — `Lab not found`)",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Problem" },
+                "example": {
+                  "type": "https://leetkob.example/problems/lab-not-found",
+                  "title": "Lab not found",
+                  "status": 404,
+                  "instance": "/labs/lab-7f3c2a"
+                }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/Problem500Internal" }
+        }
+      }
+    },
+    "/labs/{labId}/submissions": {
+      "post": {
+        "summary": "Submit C++17 source code to a lab",
+        "description": "Who may call it: `student` enrolled in the lab's class only. `ta` or `admin` gets `role-not-allowed` (403). Non-member gets `lab-not-found` (404). Queued immediately; poll `GET /submissions/{submissionId}`.",
+        "security": [{ "bearer": [] }],
+        "parameters": [
+          {
+            "name": "labId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["sourceCode"],
+                "additionalProperties": false,
+                "properties": {
+                  "sourceCode": {
+                    "type": "string",
+                    "description": "C++17 source code. Non-whitespace, at most 64 KiB (65536 bytes) in UTF-8."
+                  }
+                }
+              },
+              "example": {
+                "sourceCode": "#include <iostream>\nusing namespace std;\n\nlong long modPow(long long a, long long b, long long m) {\n    long long res = 1 % m;\n    a %= m;\n    while (b > 0) {\n        if (b & 1) res = (res * a) % m;\n        a = (a * a) % m;\n        b >>= 1;\n    }\n    return res;\n}\n\nint main() {\n    int q;\n    cin >> q;\n    while (q--) {\n        long long a, b, m;\n        cin >> a >> b >> m;\n        cout << modPow(a, b, m) << \"\\n\";\n    }\n    return 0;\n}\n"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Submission queued for sandbox and constraint judging",
+            "content": {
+              "application/json": {
+                "example": {
+                  "submissionId": "sub-91d0e4",
+                  "labId": "lab-7f3c2a",
+                  "status": "queued",
+                  "createdAt": "2026-11-26T09:15:00.000Z",
+                  "notice": "If this submission is Accepted, automatic rules and an AI model check it against the lab's constraints. The model receives your code without comments, name or student ID. No deduction reaches your mark until a TA has reviewed it."
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403RoleNotAllowed"
+          },
+          "404": {
+            "description": "Lab not found or student not in the lab's class (`https://leetkob.example/problems/lab-not-found` — `Lab not found`)",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Problem" },
+                "example": {
+                  "type": "https://leetkob.example/problems/lab-not-found",
+                  "title": "Lab not found",
+                  "status": 404,
+                  "instance": "/labs/lab-7f3c2a/submissions"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lab already published (`https://leetkob.example/problems/lab-published` — `The lab is already published`) or deadline passed (`https://leetkob.example/problems/deadline-passed` — `The deadline has passed`)",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Problem" },
+                "examples": {
+                  "labPublished": {
+                    "value": {
+                      "type": "https://leetkob.example/problems/lab-published",
+                      "title": "The lab is already published",
+                      "status": 409,
+                      "instance": "/labs/lab-7f3c2a/submissions",
+                      "publishedAt": "2026-11-26T14:00:00.000Z"
+                    }
+                  },
+                  "deadlinePassed": {
+                    "value": {
+                      "type": "https://leetkob.example/problems/deadline-passed",
+                      "title": "The deadline has passed",
+                      "status": 409,
+                      "instance": "/labs/lab-7f3c2a/submissions",
+                      "deadline": "2026-11-26T12:00:00.000Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body (>256 KiB) or sourceCode (>64 KiB) too large (`https://leetkob.example/problems/payload-too-large` — `Request body is too large`)",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Problem" },
+                "example": {
+                  "type": "https://leetkob.example/problems/payload-too-large",
+                  "title": "Request body is too large",
+                  "status": 413,
+                  "instance": "/labs/lab-7f3c2a/submissions",
+                  "limitBytes": 65536
+                }
+              }
+            }
+          },
+          "415": {
+            "$ref": "#/components/responses/Problem415UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422ValidationFailed"
+          },
+          "429": {
+            "description": "Pending or per-minute limit exceeded (`https://leetkob.example/problems/too-many-submissions` — `Too many submissions`)",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Problem" },
+                "example": {
+                  "type": "https://leetkob.example/problems/too-many-submissions",
+                  "title": "Too many submissions",
+                  "status": 429,
+                  "instance": "/labs/lab-7f3c2a/submissions",
+                  "limit": "per-minute",
+                  "max": 30
+                }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/Problem500Internal" }
+        }
+      }
+    },
+    "/submissions/{submissionId}": {
+      "get": {
+        "summary": "Poll submission status and test results",
+        "description": "Who may call it: the `student` who sent it, or a `ta` of the lab's class. Others get `submission-not-found` (404); `admin` gets `role-not-allowed` (403). Never returns constraint verdicts.",
+        "security": [{ "bearer": [] }],
+        "parameters": [
+          {
+            "name": "submissionId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Submission status and judge result (no constraint verdicts)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "id": "sub-91d0e4",
+                  "labId": "lab-7f3c2a",
+                  "studentId": "u-st-1",
+                  "status": "judged",
+                  "judgeResult": "accepted",
+                  "judgeDetail": {
+                    "tests": [
+                      { "position": 1, "result": "passed", "timeMs": 4 }
+                    ]
+                  },
+                  "sourceCode": "#include <iostream>\n...",
+                  "createdAt": "2026-11-26T09:15:00.000Z",
+                  "startedAt": "2026-11-26T09:15:01.000Z",
+                  "finishedAt": "2026-11-26T09:15:03.000Z"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403RoleNotAllowed"
+          },
+          "404": {
+            "description": "Submission not found or caller cannot view it (`https://leetkob.example/problems/submission-not-found` — `Submission not found`)",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Problem" },
+                "example": {
+                  "type": "https://leetkob.example/problems/submission-not-found",
+                  "title": "Submission not found",
+                  "status": 404,
+                  "instance": "/submissions/sub-91d0e4"
+                }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/Problem500Internal" }
+        }
+      }
+    },
+    "/labs/{labId}/review-queue": {
+      "get": {
+        "summary": "Read the TA review queue for a lab",
+        "description": "Who may call it: `ta` assigned to the lab's class only. `student` or `admin` gets `role-not-allowed` (403). Non-member gets `lab-not-found` (404).",
+        "security": [{ "bearer": [] }],
+        "parameters": [
+          {
+            "name": "labId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "pending",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "boolean", "default": false },
+            "description": "Optional (`true` or `false`). If `true`, keep only submissions with at least one pending review item."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lab summary, constraints, submissions, verdicts and review items",
+            "content": {
+              "application/json": {
+                "example": {
+                  "labId": "lab-7f3c2a",
+                  "labStatus": "open",
+                  "summary": {
+                    "submissions": 1,
+                    "pendingReviews": 1,
+                    "unjudgedSubmissions": 0,
+                    "failedSubmissions": 0
+                  },
+                  "constraints": [
+                    {
+                      "code": "C1",
+                      "text": "Do not call a library power function: `std::pow`, `pow`, `powf`, `powl`.",
+                      "kind": "ban_list",
+                      "deduction": 3
+                    }
+                  ],
+                  "submissions": [
+                    {
+                      "submissionId": "sub-91d0e4",
+                      "studentId": "u-st-1",
+                      "studentName": "Student One",
+                      "status": "judged",
+                      "judgeResult": "accepted",
+                      "createdAt": "2026-11-26T09:15:00.000Z",
+                      "verdicts": [
+                        {
+                          "constraintCode": "C1",
+                          "deduction": 3,
+                          "verdict": "violation",
+                          "decidedBy": "hard_rule",
+                          "reasonCode": null,
+                          "evidence": [
+                            { "line": 12, "text": "ans = pow(a, b);" }
+                          ],
+                          "reviewItem": {
+                            "id": 41,
+                            "reason": "violation",
+                            "status": "pending",
+                            "finalVerdict": null,
+                            "finalEvidence": null,
+                            "note": null,
+                            "reviewedBy": null,
+                            "reviewedAt": null
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Problem400InvalidQuery" },
+          "401": {
+            "$ref": "#/components/responses/Problem401Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403RoleNotAllowed"
+          },
+          "404": {
+            "description": "Lab not found or TA not assigned (`https://leetkob.example/problems/lab-not-found` — `Lab not found`)",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Problem" },
+                "example": {
+                  "type": "https://leetkob.example/problems/lab-not-found",
+                  "title": "Lab not found",
+                  "status": 404,
+                  "instance": "/labs/lab-7f3c2a/review-queue"
+                }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/Problem500Internal" }
+        }
+      }
+    },
+    "/review-items/{itemId}/decision": {
+      "post": {
+        "summary": "Decide one review item",
+        "description": "Who may call it: `ta` assigned to the item's class only. `student` or `admin` gets `role-not-allowed` (403). Non-member gets `review-item-not-found` (404).",
+        "security": [{ "bearer": [] }],
+        "parameters": [
+          {
+            "name": "itemId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "minimum": 1 }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["finalVerdict"],
+                "additionalProperties": false,
+                "properties": {
+                  "finalVerdict": {
+                    "type": "string",
+                    "enum": ["pass", "violation"]
+                  },
+                  "evidence": {
+                    "type": "array",
+                    "maxItems": 20,
+                    "items": { "$ref": "#/components/schemas/EvidenceLine" },
+                    "description": "Required and non-empty when finalVerdict is `violation`; absent or empty when `pass`."
+                  },
+                  "note": {
+                    "type": "string",
+                    "nullable": true,
+                    "maxLength": 1000
+                  }
+                }
+              },
+              "example": {
+                "finalVerdict": "pass",
+                "note": "Verified binary exponentiation in loop."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Item decided (or replayed with the same decision)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "reviewItem": {
+                    "id": 41,
+                    "submissionId": "sub-91d0e4",
+                    "constraintCode": "C1",
+                    "reason": "sample",
+                    "status": "reviewed",
+                    "finalVerdict": "pass",
+                    "finalEvidence": null,
+                    "note": "Verified binary exponentiation in loop.",
+                    "reviewedBy": "u-ta-1",
+                    "reviewedAt": "2026-11-26T10:02:00.000Z"
+                  },
+                  "pendingReviews": 0
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem403RoleNotAllowed"
+          },
+          "404": {
+            "description": "Review item not found or TA not assigned (`https://leetkob.example/problems/review-item-not-found` — `Review item not found`)",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Problem" },
+                "example": {
+                  "type": "https://leetkob.example/problems/review-item-not-found",
+                  "title": "Review item not found",
+                  "status": 404,
+                  "instance": "/review-items/41/decision"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Lab already published (`https://leetkob.example/problems/lab-published` — `The lab is already published`) or item already decided differently (`https://leetkob.example/problems/review-already-decided` — `The review item is already decided`)",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Problem" },
+                "examples": {
+                  "labPublished": {
+                    "value": {
+                      "type": "https://leetkob.example/problems/lab-published",
+                      "title": "The lab is already published",
+                      "status": 409,
+                      "instance": "/review-items/41/decision",
+                      "publishedAt": "2026-11-26T14:00:00.000Z"
+                    }
+                  },
+                  "alreadyDecided": {
+                    "value": {
+                      "type": "https://leetkob.example/problems/review-already-decided",
+                      "title": "The review item is already decided",
+                      "status": 409,
+                      "instance": "/review-items/41/decision",
+                      "reviewItem": {
+                        "id": 41,
+                        "submissionId": "sub-91d0e4",
+                        "constraintCode": "C1",
+                        "reason": "violation",
+                        "status": "reviewed",
+                        "finalVerdict": "violation",
+                        "finalEvidence": [
+                          { "line": 12, "text": "ans = pow(a, b);" }
+                        ],
+                        "note": null,
+                        "reviewedBy": "u-ta-1",
+                        "reviewedAt": "2026-11-26T10:02:00.000Z"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body exceeds 64 KiB (`https://leetkob.example/problems/payload-too-large` — `Request body is too large`)",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Problem" },
+                "example": {
+                  "type": "https://leetkob.example/problems/payload-too-large",
+                  "title": "Request body is too large",
+                  "status": 413,
+                  "instance": "/review-items/41/decision",
+                  "limitBytes": 65536
+                }
+              }
+            }
+          },
+          "415": {
+            "$ref": "#/components/responses/Problem415UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem422ValidationFailed"
+          },
+          "500": { "$ref": "#/components/responses/Problem500Internal" }
+        }
+      }
+    },
+    "/labs/{labId}/publish": {
+      "post": {
+        "summary": "Publish marks for a lab",
+        "description": "Who may call it: `ta` assigned to the lab's class only. `student` or `admin` gets `forbidden-role` (403). Non-member gets `lab-not-found` (404). Idempotent via `Idempotency-Key`.",
+        "security": [{ "bearer": [] }],
+        "parameters": [
+          {
+            "name": "labId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            },
+            "example": "publish-power-mod-1",
+            "description": "1-64 characters from A-Z, a-z, 0-9, _, -."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["confirm"],
+                "additionalProperties": false,
+                "properties": {
+                  "confirm": { "type": "boolean", "enum": [true] },
+                  "note": { "type": "string", "maxLength": 500 }
+                }
+              },
+              "example": {
+                "confirm": true,
+                "note": "Modular Exponentiation lab, reviewed"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Lab was already published; returns the existing publication",
+            "content": {
+              "application/json": {
+                "example": {
+                  "labId": "lab-7f3c2a",
+                  "status": "published",
+                  "publishedAt": "2026-11-26T14:03:00.000Z",
+                  "publishedBy": "u-ta-1",
+                  "marksPublished": 1,
+                  "note": "Modular Exponentiation lab, reviewed"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Lab published by this call",
+            "content": {
+              "application/json": {
+                "example": {
+                  "labId": "lab-7f3c2a",
+                  "status": "published",
+                  "publishedAt": "2026-11-26T14:03:00.000Z",
+                  "publishedBy": "u-ta-1",
+                  "marksPublished": 1,
+                  "note": "Modular Exponentiation lab, reviewed"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing or malformed Idempotency-Key (`https://leetkob.example/problems/invalid-idempotency-key` — `Idempotency-Key is missing or invalid`)",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Problem" },
+                "example": {
+                  "type": "https://leetkob.example/problems/invalid-idempotency-key",
+                  "title": "Idempotency-Key is missing or invalid",
+                  "status": 400,
+                  "instance": "/labs/lab-7f3c2a/publish"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem401Unauthenticated"
+          },
+          "403": {
+            "description": "Caller is not a TA (`https://leetkob.example/problems/forbidden-role` — `Only TAs may publish marks`)",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Problem" },
+                "example": {
+                  "type": "https://leetkob.example/problems/forbidden-role",
+                  "title": "Only TAs may publish marks",
+                  "status": 403,
+                  "instance": "/labs/lab-7f3c2a/publish"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Lab not found or TA not assigned (`https://leetkob.example/problems/lab-not-found` — `Lab not found`)",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Problem" },
+                "example": {
+                  "type": "https://leetkob.example/problems/lab-not-found",
+                  "title": "Lab not found",
+                  "status": 404,
+                  "instance": "/labs/lab-7f3c2a/publish"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Deadline not passed (`https://leetkob.example/problems/deadline-not-passed` — `The deadline has not passed yet`) or reviews/submissions pending (`https://leetkob.example/problems/reviews-pending` — `Reviews are still pending`)",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Problem" },
+                "examples": {
+                  "reviewsPending": {
+                    "value": {
+                      "type": "https://leetkob.example/problems/reviews-pending",
+                      "title": "Reviews are still pending",
+                      "status": 409,
+                      "instance": "/labs/lab-7f3c2a/publish",
+                      "pendingCount": 3,
+                      "pendingReviews": 2,
+                      "unjudgedSubmissions": 1,
+                      "failedSubmissions": 0
+                    }
+                  },
+                  "deadlineNotPassed": {
+                    "value": {
+                      "type": "https://leetkob.example/problems/deadline-not-passed",
+                      "title": "The deadline has not passed yet",
+                      "status": 409,
+                      "instance": "/labs/lab-7f3c2a/publish",
+                      "deadline": "2026-11-28T12:00:00.000Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "415": {
+            "$ref": "#/components/responses/Problem415UnsupportedMediaType"
+          },
+          "422": {
+            "description": "Validation failed (`https://leetkob.example/problems/validation-failed` — `Request body is invalid`) or Idempotency-Key reused (`https://leetkob.example/problems/idempotency-key-reused` — `Idempotency-Key reused with a different body`)",
+            "content": {
+              "application/problem+json": {
+                "schema": { "$ref": "#/components/schemas/Problem" },
+                "examples": {
+                  "validationFailed": {
+                    "value": {
+                      "type": "https://leetkob.example/problems/validation-failed",
+                      "title": "Request body is invalid",
+                      "status": 422,
+                      "instance": "/labs/lab-7f3c2a/publish",
+                      "errors": [
+                        { "pointer": "/confirm", "message": "Must be true." }
+                      ]
+                    }
+                  },
+                  "idempotencyKeyReused": {
+                    "value": {
+                      "type": "https://leetkob.example/problems/idempotency-key-reused",
+                      "title": "Idempotency-Key reused with a different body",
+                      "status": 422,
+                      "instance": "/labs/lab-7f3c2a/publish"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/Problem500Internal" }
+        }
+      }
+    }
+  }
+}

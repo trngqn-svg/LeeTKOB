@@ -208,6 +208,7 @@ Then run step 1. On 2026-11-27 this restored a six-submission backup, and `/heal
 **9. The disk or the memory is full.** Look with `df -h /` and `free -m`. For old images and stopped containers, `sudo docker system prune` frees space and keeps the volumes. The VM has about 3.8 GiB of memory and no swap, which is enough for one sandbox run at a time.
 
 **10. Last resort: a new VM.** Create it in a region the Gemini API serves (Korea Central works; East Asia does not), with the same size, ports 80 and 443 open, and a DNS name label. Install Docker and Compose, `git clone` the repository, create `/etc/leetkob/leetkob.env` from `deploy/leetkob.env.example` (new `DOMAIN` and `DOCKER_GID`, the same `SEED_PASSWORD` and key), build the sandbox image, and run `dc up --detach --build` as in section 7.1. To keep the database, copy a backup into the `data` volume as in step 7. Call the model from the new VM before you rely on it.
+For the demo, Caddy also serves a static Swagger UI page at `/docs/` from `docs/swagger/` (hand-written OpenAPI 3.0.3 spec matching `docs/contract/`, with no changes to the Node API).
 
 ## 8. What to verify before relying on this
 
