@@ -387,6 +387,7 @@ Kept: all nine attacks stop on the Korea Central VM (9 of 9, no container left o
 Changed: the requeue of a `failed` submission was tried on a copy of the database only, and a reboot was not tried; section 7.2 says so for both. It also says the team shares one SSH key, which differs from section 5.
 Rejected: nothing.
 By hand: (to fill in) read section 7.2 and run one step yourself, for example the backup.
+
 ## 2026-11-27 — Swagger UI demo page (/docs/)
 
 Tool: Antigravity (Gemini).
