@@ -35,7 +35,8 @@ LeeTKOB/
 ├── AI-LOG.md                  # Every use of an AI tool: asked, kept, changed, rejected
 ├── CLAUDE.md                  # Imports AGENTS.md for Claude Code
 ├── PA2.md                     # What was handed in for PA#2
-├── SELF_ASSESSMENT_REPORT.md  # The team's self-assessment of PA#2
+├── PA3.md                     # What is handed in for PA#3: URL, accounts, video, CI, eval runs
+├── SELF_ASSESSMENT_REPORT.md  # The team's self-assessment of the current PA (PA#3; git history keeps PA#2)
 ├── eslint.config.js           # ESLint 9 and typescript-eslint settings
 ├── package.json               # Scripts and dependencies (package-lock.json pins them)
 ├── tsconfig.json              # TypeScript strict settings for src/ and tests/
