@@ -387,3 +387,13 @@ Kept: `docs/swagger/openapi.json` covering all nine operations and every contrac
 Changed: nothing in `src/` or `docs/contract/`.
 Rejected: `@fastify/swagger` (forbidden by `AGENTS.md` because Fastify route schemas break contract check ordering).
 By hand: (to fill in) review PR, run `caddy validate`, and verify `/docs/` on the VM.
+
+## 2026-11-28 — PA3.md, the self-assessment, and the rubric's walk-through on the deployment
+
+Tool: Claude Code (Opus).
+Asked for: write `PA3.md` and `SELF_ASSESSMENT_REPORT.md` from the PA#3 rubric, with evidence for each criterion.
+Kept: the rubric's walk-through, run on the deployment through the public API: a lab from `sort-merge` created as `ta1`; `s01`, `s04` and `s09` submitted as `student1` while the worker was stopped (all three stayed `queued`); after the worker started again, each was judged once (`attempts = 1`, one set of verdicts) and the six verdicts equalled the dev-set labels, the injection case included; `ta2` got `404` on the lab and its queue. The committed dev-set run, re-scored with `eval.mjs`, gave the reported numbers (0 wrongful, 36/37, 1/102 unsure), and `eval-own` gave 0 wrongful and 5/5.
+The model and its cost, for criterion 4: `gemini-3.5-flash-lite` on the Gemini free tier (US$0 billed). At list prices (US$0.10 per million input tokens, US$0.40 per million output tokens) and the dev-set run's means (851.85 input and 46.72 output tokens per call), one call costs (851.85 × 0.10 + 46.72 × 0.40) / 1,000,000 = US$0.00010387. A lab of 80 Accepted submissions costs 80 × US$0.00010387 = US$0.0083 with one semantic constraint, and 160 × US$0.00010387 = US$0.0166 with two. Ban-list constraints cost nothing: no model call.
+Changed: the first draft of `PA3.md` described the walk-through on our own problem (`power-mod`); the rubric names `sort-merge` with a compliant, a violation and an injection solution, so the walk-through was run again that way and `PA3.md` reports that run. The first run of the script timed out on the network from the laptop while the worker was stopped; the worker was started again at once, and the run repeated.
+Rejected: claiming full marks on criteria 7 and 8: one commit (`37d25dd`) mixes the checker and the own eval cases, and some log entries say "Changed: none".
+By hand: (to fill in) agree the marks with the whole team, and fill in the video link and the test password in `PA3.md`.
