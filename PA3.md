@@ -16,7 +16,7 @@ Team: 23120292 — Nguyễn Quốc Lộc · 23120337 — Bùi Minh Quân · 2312
 
 ## Test accounts
 
-They hold no real data. The password is the same for all five: `SEED_PASSWORD_HERE`.
+They hold no real data. The password is the same for all five: `LeetkobPA3b87235d69dfe`.
 
 | Email                      | Role    | Class   |
 | -------------------------- | ------- | ------- |
